@@ -34,3 +34,6 @@ build/
 .idea/
 Thumbs.db
 .DS_Store
+
+# --- Ders materyali (öğrenci kişisel verisi içerir; repoya ASLA girmez) ---
+Ogrenciler_gruplar.*

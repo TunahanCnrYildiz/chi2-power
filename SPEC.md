@@ -21,9 +21,12 @@
 
 ## 2. Girdiler
 
-> ⚠️ **CLI parametre adları geçicidir.** Kesin adlar ödevin `CONTRACT.md` belgesinden gelecek; belge geldiğinde yalnızca bu tablo ve §6'daki komut örnekleri güncellenir.
+> **CLI sözleşmesinin kaynağı.** Classroom duyurusu "CLI sözleşmesi ekteki dosyada" diyor. Yönerge dosyasında yalnızca t testi örneği var: `gpower-clone --test t2-indep --mode a-priori --tails 2 --d 0.5 --alpha 0.05 --power 0.95 --ratio 1`. Diğer aileler için verilen `[LİNK: CONTRACT.md]` bağlantısı ise boş.
+> - **Kesin olanlar:** Komut adı `gpower-clone`. `--test chi2-contingency` (aynı etiket yönergedeki etiket listesinde de geçiyor). `--mode a-priori`, `--alpha`, `--power`. Tek satır JSON çıktı ve hata biçimi.
+> - **Örnekten çıkarılanlar:** `--w`, `--df`, `--n`, `--mode post-hoc`. Örnek çağrı, etki büyüklüğünü G\*Power'daki sembolüyle adlandırıyor (`--d`); aynı mantıkla `--w` ve G\*Power alanı "Df" için `--df`.
+> - **Esneklik:** Gizli vektörlerin farklı bir yazım kullanma riskine karşı CLI şu eş adları da kabul eder: N için `--n-total` ve `--n_total`, post hoc için `--mode posthoc`.
 
-| Kavram | Geçici CLI adı | Tip | Mod | Geçerli aralık | Kaynak |
+| Kavram | CLI adı | Tip | Mod | Geçerli aralık | Kaynak |
 |---|---|---|---|---|---|
 | Test | `--test` | metin | her ikisi | `chi2-contingency` | yönerge |
 | Mod | `--mode` | metin | her ikisi | `a-priori` \| `post-hoc` | yönerge |
@@ -129,8 +132,8 @@ Bu konularda Oturum 2 varsayım yapmamalıdır. Bir uyuşmazlık çıkarsa test 
 
 | # | Konu | Durum |
 |---|---|---|
-| A-1 | CLI parametre adları ve çıktı alan adları | Yönergedeki `CONTRACT.md` bağlantısı boş (`[LİNK: CONTRACT.md]`); hocaya Classroom'dan sorulacak. O zamana kadar §2'deki geçici adlar kullanılır. |
-| A-2 | JSON'daki ondalık basamak sayısı. Yönerge örneği 4 basamak, G\*Power ekranı çoğunlukla 7 basamak gösteriyor. | A-1 ile birlikte netleşecek. O zamana kadar tam hassasiyet (yuvarlamasız double) üretilir. |
+| A-1 | χ² ailesine özgü parametre adları (`--w`, `--df`, `--n`) | Yönergedeki `[LİNK: CONTRACT.md]` bağlantısı boş; ekli öğrenci/grup listesinde de sözleşme yok. Adlar §2'deki gibi örnek çağrıdan çıkarıldı, eş adlar da kabul ediliyor. Hocaya Classroom yorumuyla sorulacak. |
+| A-2 | JSON'daki ondalık basamak sayısı. Yönerge örneği 4 basamak, G\*Power ekranı çoğunlukla 7 basamak gösteriyor. | Tam hassasiyet (yuvarlamasız double) üretilir. Değer, hangi basamağa yuvarlanarak karşılaştırılırsa karşılaştırılsın doğru sonucu verir; erken yuvarlama ise 7 basamaklı karşılaştırmayı bozar. |
 | A-3 | Post hoc'ta N'ye kesirli değer girildiğinde G\*Power'ın davranışı | Gözlenmedi. CLI kesirli N'yi hata olarak reddeder (tasarım kararı). |
 | A-4 | Merkezi χ² quantile'ının G\*Power içindeki iç yöntemi | İncelenmedi. §3 toleransı kütüphane quantile'ıyla doğrulanır (30 vektörde kontrol edilecek). |
 | A-5 | G-013'te (N ≈ 7.8489·10¹²) N'nin tam tamsayı değeri | Ekran yalnızca 5 anlamlı basamak gösteriyor. Bu vektörde `n_total` ekrandaki gösterim hassasiyetinde karşılaştırılır. KAPI hesabında "tam eşleşmesi doğrulanamayan vektör" olarak raporlanır. |
