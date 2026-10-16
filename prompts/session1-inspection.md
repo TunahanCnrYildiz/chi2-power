@@ -13,7 +13,7 @@ Tarih: 2026-10-16
 
 Sen bir temiz oda tersine mühendislik projesinin **inceleme** oturumusun. Hedef: G\*Power 3.1.9.7 (Windows) içindeki **χ² testi, olumsallık tablosu** güç analizinin davranışını kanıtlarıyla çıkarmak.
 
-**Hedef binary:** `C:\Users\tunah\Desktop\GPower_3.1.9.7_143\GPowerNT.exe`
+**Hedef binary:** `D:\Claude Projects\Teardown Sprint\GPower_3.1.9.7_143\GPowerNT.exe` (proje içinde, git dışı)
 SHA-256: `C63E6A133EB6372932F810C08CC33DC35A06D1DDB658F897BD6C34A754EFC812` — işe başlamadan önce hash'i doğrula.
 
 **Kapsam:** G\*Power'da Test family "χ² tests" → Statistical test "Goodness-of-fit tests: Contingency tables". Modlar: a priori (w, α, güç, df → toplam N) ve post hoc (w, α, toplam N, df → güç). Bunun dışındaki test ailelerini inceleme.

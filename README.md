@@ -23,15 +23,20 @@ Bu araç G\*Power değildir ve G\*Power ekibiyle bir bağı yoktur (bkz. [Atıf]
 
 ## Kurulum kontrolü
 
-<!-- TODO: Ajana "REA araçları ve Ghidra sağlayıcısı bu oturumda kullanılabilir mi?" sorusunun cevabının ekran görüntüsü -->
+Ajana "REA araçları ve Ghidra sağlayıcısı bu oturumda kullanılabilir mi?" diye soruldu; cevap:
+
 ![Kurulum kontrolü](docs/setup-check.png)
 
 | Araç | Sürüm |
 |---|---|
-| REA (`rea-agents`) | _TODO_ |
-| Ghidra | _TODO_ |
-| JDK | 21 — _TODO_ |
+| REA (`rea-agents`) | 6.5.0 (207 MCP aracı) |
+| Ghidra | 12.1.4 (`ghidra_12.1.4_PUBLIC_20260921.zip`, SHA-256 `ddac49f9…87d2d4db`) |
+| JDK | Eclipse Temurin 21.0.12.1 (64-bit) |
 | Ajan | Claude Code (Opus 5.5) |
+
+> Not (Windows + Claude masaüstü uygulaması): Uygulama MCP sunucularına sistem ortam değişkenlerini aktarmıyor.
+> `GHIDRA_INSTALL_DIR`, REA kaydının `env` alanına yazılmalı (`claude_desktop_config.json`).
+> İlk Ghidra analizi (~90 sn) MCP zaman aşımını aştığı için REA çağrıları CLI (`rea trace|function|read-bytes … --provider ghidra`) üzerinden yapıldı.
 
 ## Kapsam: χ² olumsallık tablosu
 

@@ -6,6 +6,7 @@ GPower*.zip
 VC_redist*.exe
 *.wav
 tools/gpower/
+GPower_*/
 
 # --- Temiz oda: decompile / disassembly çıktısı teslime girmez ---
 # İnceleme oturumunun ham çalışma alanı. LEDGER.md'ye yalnızca kısa alıntı + adres taşınır.

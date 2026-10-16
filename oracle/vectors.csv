@@ -1,1 +1,9 @@
 id,source,mode,w,alpha,power,n_total_in,df,ncp,critical,df_out,n_total,actual_power,screenshot,notes
+G-001,gui,a-priori,0.3,0.05,0.95,,1,13.0500000,3.8414588,,145,0.9507851,screenshots/G-001.png,
+G-002,gui,a-priori,0.3,0.05,0.80,,4,11.9700000,9.4877290,,133,0.8013043,screenshots/G-002.png,
+G-003,gui,a-priori,0.1,0.05,0.80,,2,9.6400000,5.9914645,,964,0.8002316,screenshots/G-003.png,küçük w
+G-004,gui,a-priori,0.5,0.01,0.90,,6,23.2500000,16.8118938,,93,0.9011611,screenshots/G-004.png,
+G-005,gui,post-hoc,0.3,0.05,,100,1,9.0000000,3.8414588,,,0.8508388,screenshots/G-005.png,post hoc: actual_power = ekrandaki Power (1-β err prob)
+G-006,gui,post-hoc,0.2,0.05,,250,3,10.0000000,7.8147279,,,0.7610631,screenshots/G-006.png,post hoc: actual_power = ekrandaki Power (1-β err prob)
+G-007,gui,a-priori,0.3,0.05,0.05,,1,0.0900000,3.8414588,,1,0.0603726,screenshots/G-007.png,sınır: güç = α kabul edildi; N alt sınır 1'e çekildi
+G-008,gui,a-priori,0.3,0.05,0.80,,0,,,,,,screenshots/G-008.png,geçersiz: df = 0 → "Degrees of Freedom must be greater or equal one."
