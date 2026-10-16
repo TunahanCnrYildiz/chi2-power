@@ -1,0 +1,35 @@
+# --- G*Power binary'si ASLA repoya girmez (etik kural 2) ---
+# Yalnızca resmi sayfadan dağıtılabilir: psychologie.hhu.de
+GPowerNT.exe
+GPower*.exe
+GPower*.zip
+VC_redist*.exe
+*.wav
+tools/gpower/
+
+# --- Temiz oda: decompile / disassembly çıktısı teslime girmez ---
+# İnceleme oturumunun ham çalışma alanı. LEDGER.md'ye yalnızca kısa alıntı + adres taşınır.
+re-work/
+*.gpr
+*.rep/
+*.c.decompiled
+*.asm
+
+# --- Yerel ajan ayarları ---
+.claude/settings.local.json
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# --- Editör / işletim sistemi ---
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
