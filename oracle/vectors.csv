@@ -7,3 +7,25 @@ G-005,gui,post-hoc,0.3,0.05,,100,1,9.0000000,3.8414588,,,0.8508388,screenshots/G
 G-006,gui,post-hoc,0.2,0.05,,250,3,10.0000000,7.8147279,,,0.7610631,screenshots/G-006.png,post hoc: actual_power = ekrandaki Power (1-β err prob)
 G-007,gui,a-priori,0.3,0.05,0.05,,1,0.0900000,3.8414588,,1,0.0603726,screenshots/G-007.png,sınır: güç = α kabul edildi; N alt sınır 1'e çekildi
 G-008,gui,a-priori,0.3,0.05,0.80,,0,,,,,,screenshots/G-008.png,geçersiz: df = 0 → "Degrees of Freedom must be greater or equal one."
+G-009,gui,a-priori,0.8,0.05,0.80,,1,8.3200000,3.8414588,,13,0.8223816,screenshots/G-009.png,küçük N (N < 100 daraltma dalı)
+G-010,gui,a-priori,0.9,0.05,0.95,,10,25.1100000,18.3070381,,31,0.9563998,screenshots/G-010.png,küçük N büyük df
+G-011,gui,a-priori,0.05,0.05,0.95,,1,12.9950000,3.8414588,,5198,0.9500042,screenshots/G-011.png,büyük N (genişletme dalı)
+G-012,gui,a-priori,0.02,0.05,0.80,,3,10.9028000,7.8147279,,27257,0.8000095,screenshots/G-012.png,çok büyük N
+G-013,gui,a-priori,0.000001,0.05,0.80,,1,7.8488605,3.8414588,,7.8489e+12,0.8000000,screenshots/G-013.png,"sınır: w = 1e-6 kabul; N ekranda bilimsel gösterimle (7.8489e+12), tam değer ekrandan okunamıyor; λ = w²N ⇒ N ≈ 7.8488605e12"
+G-014,gui,a-priori,0.0000009,0.05,0.80,,1,,,,,,screenshots/G-014.png,"geçersiz: w < 1e-6 → ""Effect size w must be greater 1e-06."""
+G-015,gui,a-priori,0.3,0.05,0.04,,1,,,,,,screenshots/G-015.png,"geçersiz: güç < α → ""Power must be greater than or equal to alpha."""
+G-016,gui,a-priori,0.3,0.00000001,0.80,,1,,,,,,screenshots/G-016.png,"geçersiz: α < 1e-7 → ""Alpha is outside the admissible range (1e-07, 1)."""
+G-017,gui,a-priori,0.3,0.05,0.9999999,,1,51.3000000,3.8414588,,570,0.9999999,screenshots/G-017.png,sınır: güç üst sınırda (0.9999999) kabul
+G-018,gui,a-priori,0.3,0.05,0.99999999,,1,,,,,,screenshots/G-018.png,"geçersiz: güç > 0.9999999 → ""Power is outside the admissible range (1e-07, 1)."""
+G-019,gui,a-priori,0.3,0.05,0.80,,2.5,10.3500000,6.9280761,,115,0.8017509,screenshots/G-019.png,kesirli df kabul edilip hesaplanıyor
+G-020,gui,a-priori,0.3,0.10,0.80,,30,20.5200000,40.2560237,,228,0.8013717,screenshots/G-020.png,büyük df farklı α
+G-021,gui,a-priori,0.3,0.001,0.90,,100,77.8500000,149.4493,,865,0.9002502,screenshots/G-021.png,çok büyük df küçük α; kritik değer ekranda 4 ondalıkla gösteriliyor
+G-022,gui,a-priori,1.5,0.05,0.80,,2,11.2500000,5.9914645,,5,0.8608329,screenshots/G-022.png,çok büyük w
+G-023,gui,post-hoc,0,0.05,,100,1,0,3.8414588,,,0.0500000,screenshots/G-023.png,sınır: w = 0 kabul; güç = α; λ ekranda '0'
+G-024,gui,post-hoc,-0.1,0.05,,100,1,,,,,,screenshots/G-024.png,"geçersiz: w < 0 → ""Effect size w must be non-negative."""
+G-025,gui,post-hoc,0.3,0.05,,1,1,0.0900000,3.8414588,,,0.0603726,screenshots/G-025.png,sınır: N = 1; G-007 ile aynı güç
+G-026,gui,post-hoc,0.3,0.05,,0,1,,,,,,screenshots/G-026.png,"geçersiz: N = 0 → ""Total sample size is outside the admissible range (1, 2147483646)"""
+G-027,gui,post-hoc,0.1,0.05,,100000,5,1000,11.0704977,,,1.0000000,screenshots/G-027.png,çok büyük N; λ ekranda '1000' (ondalıksız)
+G-028,gui,post-hoc,0.5,0.01,,30,4,7.5000000,13.2767041,,,0.3354524,screenshots/G-028.png,küçük N
+G-029,gui,post-hoc,0.3,0.05,,145,1,13.0500000,3.8414588,,,0.9507851,screenshots/G-029.png,G-001'in tersi: aynı güç
+G-030,gui,post-hoc,0.25,0.05,,200,6,12.5000000,12.5915872,,,0.7584630,screenshots/G-030.png,orta değerler
