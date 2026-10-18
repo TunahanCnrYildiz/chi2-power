@@ -179,26 +179,7 @@ def a_priori(w: float, alpha: float, power: float, df: float) -> Result:
         raise InputError(MSG_POWER_LT_ALPHA)
 
     crit = critical_value(alpha, df)
-
-    def f(n: float) -> float:
-        return power_at(w, n, crit, df) - power
-
-    try:
-        lo, hi = find_bracket(f)
-    except RootNotFound:
-        raise InputError(MSG_NO_ROOT) from None
-    try:
-        n_frac = brent(f, lo, hi)
-    except RootNotFound:
-        # Tasarım kararı: alt uçta (N = 1) güç hedefe zaten ulaşıyorsa
-        # (ör. güç = α, G-007) aralıkta işaret değişimi yoktur; en küçük
-        # N alt uçtur. Aksi hâlde hata.
-        if f(lo) >= 0:
-            n_frac = lo
-        else:
-            raise InputError(MSG_NO_ROOT) from None
-
-    n_total = round_n(n_frac)
+    n_total = round_n(_solve_n(w, power, crit, df))
     ncp = w * w * n_total
     return Result(
         n_total=n_total,
@@ -207,6 +188,30 @@ def a_priori(w: float, alpha: float, power: float, df: float) -> Result:
         df=df,
         ncp=ncp,
     )
+
+
+def fractional_n(w: float, alpha: float, power: float, df: float) -> float:
+    """Yuvarlamadan önceki kesirli N (§4.5/1–3); diferansiyel testler için. Girdi doğrulamaz."""
+    return _solve_n(w, power, critical_value(alpha, df), df)
+
+
+def _solve_n(w: float, power: float, crit: float, df: float) -> float:
+    def f(n: float) -> float:
+        return power_at(w, n, crit, df) - power
+
+    try:
+        lo, hi = find_bracket(f)
+    except RootNotFound:
+        raise InputError(MSG_NO_ROOT) from None
+    try:
+        return brent(f, lo, hi)
+    except RootNotFound:
+        # Tasarım kararı: alt uçta (N = 1) güç hedefe zaten ulaşıyorsa
+        # (ör. güç = α, G-007) aralıkta işaret değişimi yoktur; en küçük
+        # N alt uçtur. Aksi hâlde hata.
+        if f(lo) >= 0:
+            return lo
+        raise InputError(MSG_NO_ROOT) from None
 
 
 def post_hoc(w: float, alpha: float, n: float, df: float) -> Result:
