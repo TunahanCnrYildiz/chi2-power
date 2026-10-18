@@ -1,25 +1,19 @@
 """gpower-clone komut satırı aracı — motorun üstünde ince katman.
 
-Argümanları ayrıştırır, sayıya çevirir, motoru çağırır ve tek satır JSON basar.
-Hesap ve alan doğrulaması motordadır (engine.py).
+Argümanları ayrıştırır, metni sayıya çevirir, ortak katmanı (service) çağırır
+ve tek satır JSON basar. Hesap ve alan doğrulaması motordadır (engine.py).
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import math
 import sys
 
-from . import engine
+from . import service
 
 TESTS = ("chi2-contingency",)
-MODES = {"a-priori": "a-priori", "post-hoc": "post-hoc", "posthoc": "post-hoc"}
-REQUIRED = {
-    "a-priori": ("w", "alpha", "power", "df"),
-    "post-hoc": ("w", "alpha", "n", "df"),
-}
-FLAG = {"w": "--w", "alpha": "--alpha", "power": "--power", "n": "--n", "df": "--df"}
+FLAG = {"mode": "--mode", "w": "--w", "alpha": "--alpha", "power": "--power", "n": "--n", "df": "--df"}
 
 
 class CliError(Exception):
@@ -51,52 +45,33 @@ def _number(name: str, text: str) -> float:
     try:
         value = float(text)
     except ValueError:
-        raise CliError(f"Invalid numeric value for {FLAG[name]}: {text!r}") from None
+        raise service.ServiceError(f"Invalid numeric value for {FLAG[name]}: {text!r}") from None
     if not math.isfinite(value):
-        raise CliError(f"Invalid numeric value for {FLAG[name]}: {text!r} (must be finite)")
+        raise service.ServiceError(f"Invalid numeric value for {FLAG[name]}: {text!r} (must be finite)")
     return value
 
 
-def _run(argv: list[str]) -> engine.Result:
-    args = _build_parser().parse_args(argv)
+def _run(argv: list[str]) -> dict:
+    try:
+        args = _build_parser().parse_args(argv)
+    except CliError as e:
+        return service.error(str(e))
     if args.test is None:
-        raise CliError("Missing required parameter: --test")
+        return service.error("Missing required parameter: --test")
     if args.test not in TESTS:
-        raise CliError(f"Unknown test: {args.test!r} (supported: {', '.join(TESTS)})")
-    if args.mode is None:
-        raise CliError("Missing required parameter: --mode")
-    mode = MODES.get(args.mode)
-    if mode is None:
-        raise CliError(f"Unknown mode: {args.mode!r} (supported: a-priori, post-hoc)")
-    for name in REQUIRED[mode]:
-        if getattr(args, name) is None:
-            raise CliError(f"Missing required parameter: {FLAG[name]}")
-    values = {name: _number(name, getattr(args, name)) for name in REQUIRED[mode]}
-    if mode == "a-priori":
-        return engine.a_priori(**values)
-    return engine.post_hoc(**values)
-
-
-def _emit(obj: dict) -> None:
-    sys.stdout.write(json.dumps(obj, separators=(",", ":")) + "\n")
+        return service.error(f"Unknown test: {args.test!r} (supported: {', '.join(TESTS)})")
+    params = {name: getattr(args, name) for name in ("w", "alpha", "power", "n", "df")}
+    return service.compute(args.mode, params, label=FLAG.__getitem__, convert=_number)
 
 
 def main(argv: list[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
     try:
-        r = _run(argv)
-    except (CliError, engine.InputError) as e:
-        _emit({"error": str(e)})
-        return 1
+        result = _run(argv)
     except Exception as e:  # beklenmeyen durumlar da tek satır JSON olarak raporlanır
-        _emit({"error": f"Internal error: {e}"})
-        return 2
-    _emit({
-        "n_total": r.n_total,
-        "actual_power": r.actual_power,
-        "critical": r.critical,
-        "df": int(r.df) if r.df == math.floor(r.df) else r.df,  # S-3
-        "ncp": r.ncp,
-    })
-    return 0
+        result, code = service.error(f"Internal error: {e}"), 2
+    else:
+        code = 1 if service.is_error(result) else 0
+    sys.stdout.write(service.to_json(result) + "\n")
+    return code

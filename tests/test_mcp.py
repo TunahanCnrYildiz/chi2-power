@@ -138,4 +138,6 @@ def test_cli_uses_service():
 
     src = Path(cli.__file__).read_text(encoding="utf-8")
     assert cli.service is service
-    assert "engine." not in src  # CLI motoru yalnızca ortak katman üzerinden çağırır
+    # CLI motoru yalnızca ortak katman üzerinden çağırır
+    assert "import engine" not in src and "from .engine" not in src
+    assert not hasattr(cli, "engine")
