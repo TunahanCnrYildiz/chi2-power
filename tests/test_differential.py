@@ -38,6 +38,14 @@ def test_harness_detects_mismatch(tmp_path):
     assert not passed
 
 
+def test_report_paths_under_tests():
+    """Uyum raporları tests/reports/ altında üretilir."""
+    import statsmodels_vectors
+
+    assert differential.DEFAULT_REPORT == HERE / "reports" / "differential_report.md"
+    assert statsmodels_vectors.DEFAULT_OUT == HERE / "reports"
+
+
 @pytest.mark.skipif(not ORACLE.exists(), reason="oracle/vectors.csv henüz yok")
 def test_oracle_gate():
     results = differential.run_csv(ORACLE, differential.default_cmd())

@@ -9,7 +9,7 @@
 - Tamsayıya 1e-6'dan yakın N_sm (yuvarlama kuralıyla açıklanan sınır durumları): 0
 - Açıklanamayan uyuşmazlık: 0
 - Bizim kesirli N ile N_sm arasındaki en büyük fark: 2.496e-06 (göreli 2.450e-07)
-- Kökte artık |güç(N) − hedef| en büyük değeri: gpower-clone 1.545e-12, statsmodels 8.525e-08 (fark statsmodels çözücüsünün daha gevşek toleransından)
+- Kökte artık |güç(N) − hedef| en büyük değeri: gpower-clone 5.551e-16, statsmodels 8.525e-08 (fark statsmodels çözücüsünün daha gevşek toleransından)
 - Minimallik (statsmodels gücüyle): güç(n_total) ≥ hedef ve güç(n_total − 1) < hedef: **594/594**
 - `actual_power` ile statsmodels gücü (aynı n_total'da) en büyük mutlak fark: 5.551e-16
 

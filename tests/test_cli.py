@@ -67,6 +67,37 @@ def test_parse_errors_are_json(argv, capsys):
     assert list(out) == ["error"] and isinstance(out["error"], str) and out["error"]
 
 
+@pytest.mark.parametrize("df,raw", [("1", '"df":1,'), ("1.0", '"df":1,'), ("2.5", '"df":2.5,')])
+def test_df_integer_format(df, raw, capsys):
+    """S-3: tamsayıya eşit df tamsayı biçiminde, değilse ondalık yazılır."""
+    code = cli.main(BASE + ["--mode", "post-hoc", "--w", "0.3", "--alpha", "0.05",
+                            "--n", "100", "--df", df])
+    out = capsys.readouterr().out
+    assert code == 0
+    assert raw in out
+
+
+@pytest.mark.parametrize("mode,extra", [
+    ("a-priori", ["--power", "0.95"]),
+    ("post-hoc", ["--n", "145"]),
+])
+def test_tails_and_ratio_ignored(mode, extra, capsys):
+    """S-4: sözleşmenin genel parametreleri --tails ve --ratio kabul edilir ve yok sayılır."""
+    args = BASE + ["--mode", mode, "--w", "0.3", "--alpha", "0.05", "--df", "1"] + extra
+    _, plain = run(args, capsys)
+    code, out = run(args + ["--tails", "2", "--ratio", "1"], capsys)
+    assert code == 0 and out == plain
+    code, out = run(["--tails=1", "--ratio=3"] + args, capsys)
+    assert code == 0 and out == plain
+
+
+def test_known_param_of_other_mode_ignored(capsys):
+    """S-4: moda ait olmayan bilinen parametre (a priori'de --n) yok sayılır."""
+    code, out = run(BASE + ["--mode", "a-priori", "--w", "0.3", "--alpha", "0.05",
+                            "--power", "0.95", "--df", "1", "--n", "7"], capsys)
+    assert code == 0 and out["n_total"] == 145
+
+
 def test_negative_value_accepted_as_value(capsys):
     code, out = run(BASE + ["--mode", "post-hoc", "--w", "-0.1", "--alpha", "0.05",
                             "--n", "100", "--df", "1"], capsys)

@@ -41,6 +41,9 @@ def _build_parser() -> _Parser:
     p.add_argument("--power")
     p.add_argument("--n", "--n-total", "--n_total", dest="n")
     p.add_argument("--df")
+    # Sözleşmenin genel parametreleri: kabul edilir, yok sayılır (SPEC §5.1, S-4).
+    p.add_argument("--tails")
+    p.add_argument("--ratio")
     return p
 
 
@@ -93,7 +96,7 @@ def main(argv: list[str] | None = None) -> int:
         "n_total": r.n_total,
         "actual_power": r.actual_power,
         "critical": r.critical,
-        "df": r.df,
+        "df": int(r.df) if r.df == math.floor(r.df) else r.df,  # S-3
         "ncp": r.ncp,
     })
     return 0
