@@ -5,6 +5,7 @@ Beklenen değerler tests/agent/eval_set.json'dan gelir (G*Power arayüzü).
 
 from __future__ import annotations
 
+import re
 from decimal import Decimal
 from typing import Any
 
@@ -67,6 +68,7 @@ def score_main(q: dict, run: dict) -> dict[str, Any]:
         if last is None or v != last["result"].get(k):
             made = True
     s["agent_made_numbers"] = made
+    s["untraced_text_numbers"] = untraced_numbers(run.get("final_text", ""), q.get("question_tr", ""), calls)
 
     if exp["label"] == "chi2-contingency":
         s["params_ok"] = last is not None and _params_ok(exp, last["arguments"] or {})
@@ -79,6 +81,38 @@ def score_main(q: dict, run: dict) -> dict[str, Any]:
         s["params_ok"] = s["n_ok"] = s["power_ok"] = None
         s["behavior_ok"] = bool(fj) and s["label_ok"] and no_numbers and not ok_calls
     return s
+
+
+_NUM = re.compile(r"(?<![\w.,])\d+(?:[.,]\d+)?")
+
+
+def _numbers(text: str) -> list[str]:
+    return _NUM.findall(text or "")
+
+
+def untraced_numbers(final_text: str, question: str, calls: list[dict]) -> list[str]:
+    """Son cevap metninde (JSON satırı hariç) soruda, araç argümanlarında ya da araç sonucunda
+    karşılığı olmayan sayılar. Bilgi amaçlıdır: "ajan sayı üretti" kontrolü JSON satırına bakar."""
+    body = "\n".join(l for l in (final_text or "").splitlines() if not l.strip().startswith('{"label"'))
+    known: list[float] = []
+    for t in [question] + [str(v) for c in calls for v in (c.get("arguments") or {}).values()]:
+        known += [float(x.replace(",", ".")) for x in _numbers(t)]
+    for c in calls:
+        if isinstance(c.get("result"), dict):
+            known += [float(v) for v in c["result"].values() if isinstance(v, (int, float))]
+    variants = set()
+    for v in known:
+        for x in (v, v * 100):
+            for k in range(0, 8):
+                variants.add(round(x, k))
+    out = []
+    for tok in _numbers(body):
+        x = float(tok.replace(",", "."))
+        k = len(re.split(r"[.,]", tok)[1]) if re.search(r"[.,]", tok) else 0
+        if x in variants or round(x, k) in variants or any(round(v, k) == x for v in known):
+            continue
+        out.append(tok)
+    return out
 
 
 def route_ok(q: dict, route: str) -> bool:

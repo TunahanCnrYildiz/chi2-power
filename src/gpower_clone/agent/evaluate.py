@@ -129,6 +129,11 @@ def build_report(questions: list[dict], main_recs: list[dict], s1_recs: list[dic
         L.append(f"- **\"Ajan sayı üretti\" kontrolü:** {len(made)} soru işaretlendi"
                  + (f" ({', '.join(made)})" if made else "") + ". JSON satırındaki her sayı, son başarılı "
                  "araç sonucundaki değerle birebir karşılaştırılır.")
+        untr = [(r["id"], r["score"].get("untraced_text_numbers") or []) for r in rows]
+        untr = [(i, xs) for i, xs in untr if xs]
+        L.append("- **Ek kontrol (bilgi amaçlı):** cevap metninde soruda, araç argümanında ya da araç sonucunda "
+                 "karşılığı olmayan sayı: " + ("; ".join(f"{i}: {', '.join(xs)}" for i, xs in untr) if untr else "yok")
+                 + ". (Tablo boyutu ve madde numaraları gibi zararsız sayılar da burada görünebilir.)")
         L.append("")
         L.append("| Soru | Beklenen | Ajan etiketi | Araç argümanları | n_total | actual_power | Beklenen N / güç "
                  "| Davranış | Sayı üretti |")

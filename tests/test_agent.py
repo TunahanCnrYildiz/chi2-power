@@ -231,3 +231,26 @@ def test_report_builds_from_records(tmp_path):
     for needle in ("Doğru seçim oranı", "Ajan sayı üretti", "Kalibrasyon", "MCP yolu: token", "bekleniyor",
                    "claude-opus-x", "claude-haiku-x"):
         assert needle in md, needle
+
+
+def test_child_env_waits_for_mcp():
+    env = claude_cli.child_env()
+    assert env["MCP_CONNECTION_NONBLOCKING"] == "false"
+
+
+def test_usage_prefers_model_usage_totals():
+    ev = {"usage": {"input_tokens": 2, "output_tokens": 5},
+          "modelUsage": {"opus": {"inputTokens": 2, "outputTokens": 299, "cacheReadInputTokens": 10,
+                                  "cacheCreationInputTokens": 1146},
+                         "haiku": {"inputTokens": 632, "outputTokens": 16, "cacheReadInputTokens": 0,
+                                   "cacheCreationInputTokens": 0}}}
+    assert claude_cli.usage_of(ev) == {"input_tokens": 634, "cache_creation_input_tokens": 1146,
+                                       "cache_read_input_tokens": 10, "output_tokens": 315}
+
+
+def test_untraced_numbers():
+    calls = [{"name": TOOL, "arguments": {"w": 0.3, "rows": 2, "cols": 2}, "result": GOOD_RESULT}]
+    text = ("2×2 tablo, w = 0,3, α = 0,05: N = 145, güç 0,9508 (%95,08). Hücre başına ~36 kişi.\n"
+            '{"label": "chi2-contingency", "n_total": 145, "actual_power": 0.9507851454132252}')
+    q = "2×2 tablo, w = 0,3, α = 0,05 ve %95 güç"
+    assert scoring.untraced_numbers(text, q, calls) == ["36"]

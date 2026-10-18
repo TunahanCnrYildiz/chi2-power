@@ -24,9 +24,16 @@ _DROP_KEYS = {"ANTHROPIC_BASE_URL", "ANTHROPIC_MODEL", "ANTHROPIC_API_KEY", "ANT
               "CLAUDE_PID", "CLAUDE_EFFORT", "CLAUDE_PREVIEW_CLASSIFIER_FLOOR"}
 
 
+# -p kipinde MCP bağlantısı varsayılan olarak beklenmez; ilk turda araç listesi boş kalır
+# (ölçüldü: init olayında gpower-clone "pending", tools = []). Bağlantı beklensin.
+_CHILD_SETTINGS = {"MCP_CONNECTION_NONBLOCKING": "false", "MCP_TIMEOUT": "60000"}
+
+
 def child_env() -> dict[str, str]:
-    return {k: v for k, v in os.environ.items()
-            if k not in _DROP_KEYS and not k.startswith(_DROP_PREFIXES)}
+    env = {k: v for k, v in os.environ.items()
+           if k not in _DROP_KEYS and not k.startswith(_DROP_PREFIXES)}
+    env.update(_CHILD_SETTINGS)
+    return env
 
 
 def claude_exe() -> str:
@@ -53,7 +60,19 @@ def run(cmd: list[str], cwd: str | Path | None = None, timeout: float = 600) -> 
             "wall_s": time.perf_counter() - t0}
 
 
+_MODEL_USAGE_KEYS = {"input_tokens": "inputTokens", "cache_creation_input_tokens": "cacheCreationInputTokens",
+                     "cache_read_input_tokens": "cacheReadInputTokens", "output_tokens": "outputTokens"}
+
+
 def usage_of(result_event: dict) -> dict[str, int]:
+    """Oturumun toplam token kullanımı.
+
+    `modelUsage` bütün modelleri (ör. Claude Code'un arka plandaki küçük model çağrıları) ve bütün
+    turları kapsar; varsa o toplanır. Yoksa üst düzey `usage` alanı kullanılır.
+    """
+    mu = result_event.get("modelUsage") or {}
+    if any(isinstance(m, dict) and any(v in m for v in _MODEL_USAGE_KEYS.values()) for m in mu.values()):
+        return {k: sum(int(m.get(v) or 0) for m in mu.values()) for k, v in _MODEL_USAGE_KEYS.items()}
     u = result_event.get("usage") or {}
     return {k: int(u.get(k) or 0) for k in USAGE_KEYS}
 
