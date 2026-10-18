@@ -6,7 +6,7 @@ Tek davranış kaynağı: `SPEC.md` (şu an v1.2). Başka kaynak açılmadı; te
 
 ```bash
 python -m venv .venv
-.venv/Scripts/python -m pip install -e ".[test,diff]"     # Linux/macOS: .venv/bin/python
+.venv/Scripts/python -m pip install -e ".[test,diff,mcp]"     # Linux/macOS: .venv/bin/python
 ```
 
 ```bash
@@ -31,18 +31,21 @@ Testler ve raporlar:
 | Dosya | Görev |
 |---|---|
 | `src/gpower_clone/engine.py` | Tüm hesap ve alan doğrulaması: §2.1 sırası, §2.2 mesajları, §4.1–4.4 formülleri (scipy), §4.5 aralık kurma, Brent, yuvarlama |
-| `src/gpower_clone/cli.py` | İnce katman: argparse → float → motor → tek satır JSON |
+| `src/gpower_clone/service.py` | Ortak katman: mod adı, zorunlu parametre, motor çağrısı, çıktı sözlüğü (alan sırası, df biçimi), `{"error": …}`, JSON metni |
+| `src/gpower_clone/cli.py` | İnce katman: argparse → metin → float → `service.compute` → tek satır JSON |
+| `src/gpower_clone/mcp_server.py` | MCP sunucusu (stdio): tek araç, `service.compute`'u çağırır; sayı işleyen kodu yok |
 | `tests/test_acceptance.py` | SPEC §6 Gherkin; her vektör ayrı test (15 a priori, 8 post hoc, 7 hata + sıra, yuvarlama örnekleri) |
 | `tests/test_engine.py`, `tests/test_cli.py` | §4.5 adımları (x dizisi 50.5, 24.75, …), sınırlar, eş adlar, alt süreç (`python -m`, console script) |
 | `tests/differential.py` | `oracle/vectors.csv` ↔ CLI (gerçek alt süreç), ekran basamağında karşılaştırma, uyum raporu |
 | `tests/fixtures/spec_vectors.csv` | SPEC §6'daki 30 vektörün CSV biçimi (düzeneği kâhin gelmeden sınamak için) |
 | `tests/statsmodels_vectors.py` | statsmodels `GofChisquarePower` ile 894 vektör (594 a priori, 300 post hoc) |
 | `tests/test_statsmodels.py` | Aynı 894 vektörlük ızgara pytest regresyon testi olarak |
+| `tests/test_mcp.py` | MCP ↔ CLI birebir eşitlik (30 vektör), stdio uçtan uca, ince adaptör kontrolü |
 | `tests/reports/` | Üretilen uyum raporları (SPEC vektörleri, statsmodels) |
 
 ## Sonuçlar
 
-- pytest: **93 geçti, 1 atlandı** (`oracle/vectors.csv` henüz yok → `test_oracle_gate` atlanıyor).
+- pytest: **127 geçti, 1 atlandı** (`oracle/vectors.csv` henüz yok → `test_oracle_gate` atlanıyor).
 - SPEC vektörleri üzerinde diferansiyel rapor (`tests/reports/differential_report_spec.md`): 30/30 vektör tüm alanlarda tutuyor.
   **KAPI: 22/23 = %95.65** (G-013 doğrulanamayan sayıldığında); doğrulanabilirler üzerinde %100. Eşik %90 → GEÇTİ.
   Not: kâhin CSV'si gelince aynı betik onunla tekrar çalıştırılmalı; bu oran SPEC'teki tablodan türetilmiştir.
@@ -60,6 +63,92 @@ yakınsa olabilir: kesir < 5·10⁻¹¹ ise G*Power kuralı aşağı yuvarlar (1
 toleransı farklıdır. Izgarada kesirli kökler arasındaki en büyük fark 2.5·10⁻⁶ (göreli 2.5·10⁻⁷); kökteki artık
 gpower-clone'da 5.6·10⁻¹⁶ (v1.2 durma ölçütüyle; önce 1.5·10⁻¹²), statsmodels'te 8.5·10⁻⁸. Yani fark statsmodels çözücüsünün gevşek toleransından geliyor.
 Hiçbir kök bir tamsayıya 10⁻⁶'dan yakın değildi, bu yüzden bu ızgarada kural farkı ortaya çıkmadı.
+
+## MCP sunucusu (bonus katman)
+
+Motorun önünde ince bir adaptör. Akış: `mcp_server.chi2_contingency_power` → `service.compute` → `engine`.
+CLI de aynı `service.compute` ve `service.to_json` fonksiyonlarını kullanır. Bu yüzden iki yüzün çıktısı aynı
+koddan gelir; MCP modülünde scipy, `math` ya da sayı dönüştürme yoktur (`tests/test_mcp.py` bunu kaynak
+düzeyinde denetler). Resmi Python SDK `mcp` 2.3.0 (`mcp.server.mcpserver.MCPServer`; 2.x'te FastMCP bu adı aldı), stdio taşıma.
+
+### Kurulum ve çalıştırma
+
+```bash
+.venv/Scripts/python -m pip install -e ".[mcp]"
+```
+
+```bash
+gpower-clone-mcp
+```
+
+`python -m gpower_clone.mcp_server` de aynı sunucuyu başlatır. Sunucu stdin/stdout üzerinden konuşur; elle
+çalıştırıldığında istemci bekler.
+
+### Kayıt örnekleri
+
+Claude Code:
+
+```bash
+claude mcp add gpower-clone -- "D:/Claude Projects/Teardown Sprint - Yazim/.venv/Scripts/gpower-clone-mcp.exe"
+```
+
+Claude Desktop (`claude_desktop_config.json`) ya da proje kökündeki `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "gpower-clone": {
+      "command": "D:/Claude Projects/Teardown Sprint - Yazim/.venv/Scripts/gpower-clone-mcp.exe",
+      "args": []
+    }
+  }
+}
+```
+
+### Araç: `chi2_contingency_power`
+
+Açıklama: *Chi-square contingency table power analysis (G\*Power compatible). a-priori: give power, returns
+required n_total. post-hoc: give n, returns actual_power. Invalid input returns isError with {"error": message}.*
+
+Girdi şeması:
+
+| Alan | Tip | Zorunlu | Açıklama (şemadaki metin) |
+|---|---|---|---|
+| `mode` | `"a-priori"` \| `"post-hoc"` | evet | a-priori: solve N; post-hoc: solve power |
+| `w` | number | evet | Effect size w; a-priori >= 1e-6, post-hoc >= 0 |
+| `alpha` | number | evet | Alpha, 1e-7..0.9999999 |
+| `df` | number | evet | Degrees of freedom, >= 1 (fractional allowed) |
+| `power` | number \| null | a priori'de | a-priori only: target power, 1e-7..0.9999999, >= alpha |
+| `n` | integer \| null | post hoc'ta | post-hoc only: total N, 1..2147483646 |
+
+Çıktı şeması (`outputSchema`, `structuredContent`); alanlar CLI JSON'u ile aynı ve aynı sırada:
+
+| Alan | Tip | Anlamı |
+|---|---|---|
+| `n_total` | integer | Toplam N (a priori: hesaplanan; post hoc: girdi) |
+| `actual_power` | number | n_total'daki güç |
+| `critical` | number | Kritik χ² değeri |
+| `df` | number | Kullanılan df (tamsayıya eşitse JSON'da `1`, değilse `2.5`) |
+| `ncp` | number | λ = w²·n_total |
+
+Sonuç biçimi:
+- Başarı: `isError = false`; `structuredContent` = sonuç sözlüğü; tek metin içeriği = CLI'nin bastığı JSON satırı.
+- Girdi hatası: `isError = true`; `structuredContent` = `{"error": "<mesaj>"}`; metin = CLI'nin hata satırı.
+  §2.2 mesajları birebir aynıdır. Eksik parametre mesajı MCP'de alan adını kullanır
+  (`Missing required parameter: power`); CLI'de bayrak adını (`--power`). Mesaj metni S-2 gereği tasarım kararıdır.
+- Şemaya uymayan girdi (ör. `n = 100.5`, `mode = "sensitivity"`, sayı yerine metin) motora ulaşmaz. SDK argüman
+  doğrulaması bunu `isError = true` ile reddeder, mesaj pydantic'in mesajıdır ve `structuredContent` yoktur
+  (tasarım kararı). CLI'de aynı durumlar `{"error": …}` döndürür. `posthoc` eş adı MCP şemasında yok; enum yalnızca iki değer içerir.
+
+### Test sonuçları (`tests/test_mcp.py`, 34 test)
+
+- (a) Süreç içi: `spec_vectors.csv`'deki 30 vektörün tamamında (7 hata vektörü dahil) MCP sonucu, CLI alt süreç
+  çıktısıyla ayrıştırılmış JSON üzerinde birebir eşit. Hem `structuredContent` hem metin içeriği karşılaştırılıyor;
+  `isError` CLI çıkış koduna karşılık geliyor. Eksik parametre de ayrıca test ediliyor.
+- (b) Uçtan uca: sunucu `python -m gpower_clone.mcp_server` olarak stdio üzerinden gerçek `mcp.Client` ile
+  başlatılıyor. Araç listesi, girdi/çıktı şeması ve 6 vektör (2 a priori, 2 post hoc, 2 hata) CLI ile karşılaştırılıyor.
+- (c) İnce adaptör: `mcp_server.py` kaynağında scipy, `chi2.`, `ncx2`, `math`, `float(` ve motor fonksiyonları
+  geçmiyor; modül `service`'i içe aktarıyor. CLI de motoru doğrudan içe aktarmıyor.
 
 ## SPEC v1.2 ile değişenler
 
