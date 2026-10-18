@@ -4,7 +4,7 @@
 > Decompile çıktısı, adres ya da kod alıntısı içermez; yalnızca gözlenebilir davranış, algoritmanın özü ve kabul kriterleri.
 > Her kuralın sonunda dayandığı kanıt kaydı belirtilir: `(L-0xx)`. Kayıtlar inceleme oturumunun kanıt defterindedir; Oturum 2'nin onları görmesi gerekmez.
 
-- Sürüm: 1.0 taslak · 2026-10-16
+- Sürüm: 1.2 · 2026-10-18 (v1.2: §4.5 kök bulucu davranışı netleşti, §5.1 yazım oturumu soruları yanıtlandı)
 - Referans davranış: G\*Power 3.1.9.7 (Windows), "χ² tests → Goodness-of-fit tests: Contingency tables"
 - Beklenen değerlerin kaynağı (kâhin): `oracle/vectors.csv` (G\*Power arayüzü, ekran görüntülü). Bu belgedeki sayılar oradan alınmıştır; hiçbiri ajan tarafından üretilmemiştir.
 
@@ -24,7 +24,7 @@
 > **CLI sözleşmesinin kaynağı.** Classroom duyurusu "CLI sözleşmesi ekteki dosyada" diyor. Yönerge dosyasında yalnızca t testi örneği var: `gpower-clone --test t2-indep --mode a-priori --tails 2 --d 0.5 --alpha 0.05 --power 0.95 --ratio 1`. Diğer aileler için verilen `[LİNK: CONTRACT.md]` bağlantısı ise boş.
 > - **Kesin olanlar:** Komut adı `gpower-clone`. `--test chi2-contingency` (aynı etiket yönergedeki etiket listesinde de geçiyor). `--mode a-priori`, `--alpha`, `--power`. Tek satır JSON çıktı ve hata biçimi.
 > - **Örnekten çıkarılanlar:** `--w`, `--df`, `--n`, `--mode post-hoc`. Örnek çağrı, etki büyüklüğünü G\*Power'daki sembolüyle adlandırıyor (`--d`); aynı mantıkla `--w` ve G\*Power alanı "Df" için `--df`.
-> - **Esneklik:** Gizli vektörlerin farklı bir yazım kullanma riskine karşı CLI şu eş adları da kabul eder: N için `--n-total` ve `--n_total`, post hoc için `--mode posthoc`.
+> - **Esneklik:** Gizli vektörlerin farklı bir yazım kullanma riskine karşı CLI şu eş adları da kabul eder: N için `--n-total` ve `--n_total`, post hoc için `--mode posthoc`. Sözleşmenin genel parametreleri `--tails` ve `--ratio` ile moda ait olmayan bilinen parametreler kabul edilir ve yok sayılır (§5.1, S-4).
 
 | Kavram | CLI adı | Tip | Mod | Geçerli aralık | Kaynak |
 |---|---|---|---|---|---|
@@ -113,9 +113,15 @@ N, aşağıdaki adımlarla bulunur. Puanlamada belirleyici olan adımlar 2–5't
    - **f(100) ≥ 0:** üst = 100, x = (a + 100) × 0.5. x ≥ a ve f(x) > 0 olduğu sürece üst ← x, x ← (x + a) × 0.5 − a. Döngü bitince alt ← x.
      Not: Bu adım standart yarılama değildir. a = 1 için x dizisi 50.5, 24.75, 11.875, 5.4375, 2.21875, 0.609… şeklindedir.
    - Son olarak alt < 1 ise alt ← 1.
-3. **Kök bulma:** [alt, üst] aralığında Brent tarzı bir kök bulucu (ikiye bölme + ters kuadratik/sekant adımları) kullanılır. Tolerans 1e-10, en fazla 300 iterasyon. Uç noktalarda f aynı işaretliyse kök bulunamaz. (L-018, L-020)
+3. **Kök bulma:** [alt, üst] aralığında Brent tarzı bir kök bulucu (ikiye bölme + ters kuadratik/sekant adımları) kullanılır. En fazla 300 iterasyon yapılır. (L-018, L-020)
+   - **Durma ölçütü:** |yarım aralık| ≤ 1.1102230246251565·10⁻¹⁶ · |b| (b: o anki en iyi tahmin) ya da f(b) = 0. Çağrıda ayrıca 1e-10 değeri geçirilir; ancak döngüdeki durma koşulunda bu değerin kullanıldığı gözlenmedi. Pratikte iki ölçüt de sonucu değiştirmez: kök, 4. adımdaki 10 basamaklı yuvarlamadan çok daha hassas bulunur. (L-018, L-020)
+   - **Uçlarda f aynı işaretli:** Kök bulucu hata vermez; **0** döndürür. (L-020)
+   - **300 iterasyon dolarsa:** Kök bulucu hata vermez; **son tahmini (b)** döndürür. (L-020)
+   - G\*Power'ın a priori yolunda kök bulucudan kaynaklanan bir hata mesajı yoktur. Sonuç her zaman 4. ve 5. adımlardan geçer.
 4. **Yuvarlama:** Bulunan kesirli N önce 10 ondalık basamağa yuvarlanır: N′ = ⌊N · 10¹⁰ + 0.5⌋ / 10¹⁰. Sonra yukarı yuvarlanır: n_total = ⌈N′⌉. Bu nedenle kesirli kısmı 5·10⁻¹¹'den küçük olan bir N aşağı iner (ör. 104.00000000003 → 104), daha büyük her kesir yukarı çıkar. (L-021)
-5. **Alt sınır:** n_total < 1 ise n_total = 1. (L-018; oracle G-007)
+5. **Alt sınır:** n_total, 2. adımda bulunan **alt** değerinden küçükse n_total = alt olur ve 4. adımdaki yuvarlamadan bir kez daha geçirilir. (L-018)
+   - alt her zaman ≥ 1'dir (2. adımın son kuralı).
+   - Uçlarda f'nin aynı işaretli olabildiği tek durum, daraltma döngüsünün x < 1'e inip alt = 1 olmasıdır. Bu durumda kök bulucu 0 döndürür, 4. adım 0 verir ve 5. adım n_total = 1 yapar. Örnek: güç = α (G-007). (L-018, L-020, L-028)
 6. **Çıktılar:** actual_power, ncp ve critical, **yuvarlanmış** n_total ile hesaplanır (§4.1 – §4.3). (L-022)
 
 > **Neden önemli?** pwr (R) ve statsmodels (Python) N'yi kesirli verir; G\*Power ise 4. adımdaki kuralla tamsayıya çevirir. İki kaynak arasındaki farklar diferansiyel test raporunda bu kurala bağlanarak açıklanmalıdır. (yönerge, kâhin notu)
@@ -137,6 +143,15 @@ Bu konularda Oturum 2 varsayım yapmamalıdır. Bir uyuşmazlık çıkarsa test 
 | A-3 | Post hoc'ta N'ye kesirli değer girildiğinde G\*Power'ın davranışı | Gözlenmedi. CLI kesirli N'yi hata olarak reddeder (tasarım kararı). |
 | A-4 | Merkezi χ² quantile'ının G\*Power içindeki iç yöntemi | İncelenmedi. §3 toleransı kütüphane quantile'ıyla doğrulanır (30 vektörde kontrol edilecek). |
 | A-5 | G-013'te (N ≈ 7.8489·10¹²) N'nin tam tamsayı değeri | Ekran yalnızca 5 anlamlı basamak gösteriyor. Bu vektörde `n_total` ekrandaki gösterim hassasiyetinde karşılaştırılır. KAPI hesabında "tam eşleşmesi doğrulanamayan vektör" olarak raporlanır. |
+
+### 5.1 Yazım oturumunun soruları ve yanıtları (SPEC v1.2)
+
+| # | Soru | Yanıt | Dayanak |
+|---|---|---|---|
+| S-1 | G-007'de (güç = α) kök bulucu "kök bulunamaz" durumundayken G\*Power ne döndürüyor? | Hata yok. Kök bulucu 0 döndürür, yuvarlama 0 verir, alt sınır kuralı N'yi alt = 1 yapar. Ayrıca 300 iterasyon dolduğunda da hata verilmez, son tahmin kullanılır. Bu nedenle a priori yolda kök bulucudan kaynaklanan **uydurma bir hata mesajı olmamalıdır**. Yalnızca aralık genişletmenin taşması (üst → ∞) gibi G\*Power'da gözlenmemiş durumlar için tasarım kararı serbesttir. | §4.5/3, §4.5/5 (L-018, L-020, L-028); oracle G-007, G-025 |
+| S-2 | Ayrıştırma ve eksik parametre hatalarının mesaj metni ve öncelik sırası nedir? | G\*Power'da bir karşılığı yoktur; arayüzde eksik ya da bilinmeyen parametre olamaz. Yönerge yalnızca `{"error":"<açıklama>"}` ve sıfırdan farklı çıkış kodu ister. Mesaj metni ve sıra tasarım kararıdır. SPEC §2.2'deki G\*Power mesajları ise birebir korunmalıdır. | yönerge (CLI sözleşmesi); kanıt yok |
+| S-3 | Çıktıdaki `df` tamsayı mı (`1`) ondalık mı (`1.0`) yazılmalı? | df içeride ondalık sayıdır ve kesirli olabilir. Ancak yönergedeki örnek çıktı tamsayı değerli df'yi tamsayı biçiminde yazar (`"df":208`). Karar: df bir tamsayıya eşitse tamsayı biçiminde (`1`), değilse ondalık biçimde (`2.5`) yazılır. | L-006, oracle G-019; yönerge örnek çıktısı |
+| S-4 | Moda ait olmayan parametreler (ör. a priori'de `--n`) hata mı olmalı? | G\*Power'da karşılığı yoktur; arayüz yalnızca seçili modun alanlarını gösterir. Gizli vektörler bütün takımlarda "aynı düzenekle" çalıştırılacağı için düzenek, yönergenin genel sözleşmesindeki `--tails` ve `--ratio` parametrelerini her teste geçirebilir. Karar: moda ait olmayan bilinen parametreler ve sözleşmenin genel parametreleri (`--tails`, `--ratio`) **kabul edilir ve yok sayılır**. Gerçekten bilinmeyen bir parametre ise hata verir. | yönerge (örnek çağrı); kanıt yok |
 
 ## 6. Kabul kriterleri
 
