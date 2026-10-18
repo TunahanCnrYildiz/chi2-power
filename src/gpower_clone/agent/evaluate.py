@@ -229,6 +229,13 @@ def build_report(questions: list[dict], main_recs: list[dict], s1_recs: list[dic
     # --- GUI ---
     mcp_rows = [main[i] for i in qs if i in main]
     L.append(gui_compare.section(gui_path, mcp_rows, eval_questions=questions))
+    if mcp_rows and Path(gui_path).exists():
+        main_models = sorted({m for r in mcp_rows for m in (r.get("model_usage") or {})})
+        L.append("**Model notu.** MCP yolunda `--model opus` takma adı claude JSON çıktısına göre şu modellere "
+                 f"çözüldü: {', '.join(main_models)} (küçük model, Claude Code'un arka plan çağrısıdır). GUI yolu, "
+                 "ölçümü yapan oturumun bildirdiğine göre Opus 5.5 ile koştu. Modeller farklı olduğu için token ve "
+                 "süre oranları yalnızca yaklaşık bir karşılaştırmadır. MCP süresi `claude -p` sürecinin duvar "
+                 "saatidir: süreç başlatma ve MCP sunucusunun açılışı dahildir.\n")
     return "\n".join(L)
 
 

@@ -41,11 +41,13 @@ Testler ve raporlar:
 | `tests/statsmodels_vectors.py` | statsmodels `GofChisquarePower` ile 894 vektör (594 a priori, 300 post hoc) |
 | `tests/test_statsmodels.py` | Aynı 894 vektörlük ızgara pytest regresyon testi olarak |
 | `tests/test_mcp.py` | MCP ↔ CLI birebir eşitlik (30 vektör), stdio uçtan uca, ince adaptör kontrolü |
+| `src/gpower_clone/agent/` | AI ajanı: Sistem 1, MCP ajanı, puanlama, değerlendirme, GUI karşılaştırması |
+| `tests/test_agent.py` | Ajan katmanı (sahte çalıştırıcıyla): kilitli komut, akış ayrıştırma, puanlama, yönlendirme |
 | `tests/reports/` | Üretilen uyum raporları (SPEC vektörleri, statsmodels) |
 
 ## Sonuçlar
 
-- pytest: **127 geçti, 1 atlandı** (`oracle/vectors.csv` henüz yok → `test_oracle_gate` atlanıyor).
+- pytest: **184 geçti, 1 atlandı** (`oracle/vectors.csv` henüz yok → `test_oracle_gate` atlanıyor).
 - SPEC vektörleri üzerinde diferansiyel rapor (`tests/reports/differential_report_spec.md`): 30/30 vektör tüm alanlarda tutuyor.
   **KAPI: 22/23 = %95.65** (G-013 doğrulanamayan sayıldığında); doğrulanabilirler üzerinde %100. Eşik %90 → GEÇTİ.
   Not: kâhin CSV'si gelince aynı betik onunla tekrar çalıştırılmalı; bu oran SPEC'teki tablodan türetilmiştir.
@@ -149,6 +151,154 @@ Sonuç biçimi:
   başlatılıyor. Araç listesi, girdi/çıktı şeması ve 6 vektör (2 a priori, 2 post hoc, 2 hata) CLI ile karşılaştırılıyor.
 - (c) İnce adaptör: `mcp_server.py` kaynağında scipy, `chi2.`, `ncx2`, `math`, `float(` ve motor fonksiyonları
   geçmiyor; modül `service`'i içe aktarıyor. CLI de motoru doğrudan içe aktarmıyor.
+
+## AI ajanı (bonus katman)
+
+### Mimari
+
+```
+Hekimin Türkçe sorusu
+  └─ Sistem 1  (claude -p --model haiku; araç yok; --json-schema → yalnızca {"label", "confidence"})
+       ├─ chi2-contingency ve confidence ≥ 0.75 → MCP ajanı
+       ├─ bilinen ama desteklenmeyen aile (t2-indep, t-paired, anova-oneway, multireg-r2) → "desteklenmiyor, araştırmacıya danışın"
+       └─ ambiguous / unsupported ya da confidence < 0.75 → "araştırmacıya sorun"
+  └─ MCP ajanı (claude -p --model opus; tek araç mcp__gpower-clone__chi2_contingency_power)
+       └─ gpower-clone MCP sunucusu → service.compute → engine (bütün sayılar buradan)
+```
+
+- **Ajan hesap yapmaz.** Yerleşik araçların hepsi kapalı (`--tools ""`). Yalnızca gpower-clone MCP sunucusu
+  bağlanıyor (`--mcp-config` + `--strict-mcp-config`); izinli tek araç `--allowedTools mcp__gpower-clone__chi2_contingency_power`,
+  izin kipi `--permission-mode dontAsk` (izinsiz her şey reddedilir). `init` olayındaki araç listesi kayıtta
+  saklanıyor ve gerçek çalıştırmalarda yalnızca bu aracı içeriyor.
+- **Tablo boyutundan df:** Hekim "3×3" der. Ajan bunu `rows = 3, cols = 3` olarak iletir; df = (r − 1)(c − 1)
+  hesabını motordaki `engine.df_from_table` yapar. Tamsayılık ve ≥ 2 doğrulaması da orada. `service` katmanı df ile
+  rows/cols'un ikisini birden kabul eder, tutarsızlıkta hata verir. CLI'de `--rows/--cols`, MCP aracında `rows/cols` var.
+- **Sistem prompt'u** ([prompts.py](src/gpower_clone/agent/prompts.py)), Türkçe kurallar:
+  - Sayıyı asla kendin hesaplama; metne türetilmiş sayı da yazma.
+  - Cohen w eşlemesi: küçük 0,1, orta 0,3, büyük 0,5.
+  - Tablo boyutunu rows/cols olarak ilet.
+  - Desteklenmeyen ailede N üretme, araştırmacıya yönlendir.
+  - Bilgi eksikse sor.
+  - Cevabın son satırı `{"label", "n_total", "actual_power"}` JSON'u olsun.
+- **Jev yerine:** Jev erişimi olmadığından Sistem 1 için ödevin izin verdiği "etiket setine kısıtlı LLM" kullanıldı:
+  `claude -p --model haiku`, araçsız. Çıktı JSON şemasıyla (`additionalProperties: false`, etiket `enum`)
+  `{"label", "confidence"}` ile sınırlı; şema dışı alan içeren bir çıktı geçersiz sayılıyor.
+
+### Çalıştırma
+
+Ön koşul: `claude` CLI'de abonelik girişi (`claude auth login`; `claude auth status` → `"subscriptionType": "pro"`).
+API anahtarı kullanılmaz; alt süreçten `ANTHROPIC_API_KEY` bilerek çıkarılıyor.
+
+```bash
+gpower-clone-agent "3×3 tabloda orta etki, α = 0,05 ve %80 güç için toplam kaç hasta gerekir?"
+```
+
+```bash
+.venv/Scripts/python -m gpower_clone.agent.evaluate
+```
+
+```bash
+.venv/Scripts/python -m gpower_clone.agent.evaluate --report-only
+```
+
+İlk komut boru hattını tek soruda çalıştırır. İkincisi tam değerlendirmedir: 10 soru için ana ajan, ayrıca Sistem 1
+TR/EN × 3 tekrar. Kayıtlar `tests/reports/agent/*.jsonl` dosyalarına, rapor `tests/reports/agent_report.md`
+dosyasına yazılır. Üçüncüsü raporu kayıtlardan yeniden üretir; GUI sonuçları gelince bunu çalıştırmak yeterlidir.
+
+### Tasarım kararları
+
+1. **Alt süreç ortamı.** Ajan, Claude Code masaüstü oturumunun içinden başlatıldığında `CLAUDE_CODE_*`,
+   `ANTHROPIC_BASE_URL` gibi değişkenleri devralıyor ve "giriş yapılmamış" ya da bare kipe düşüyordu. Bu değişkenler
+   ve `ANTHROPIC_API_KEY` alt süreçten çıkarılıyor (`claude_cli.child_env`).
+2. **MCP bağlantısını bekleme.** `-p` kipinde MCP sunucusu varsayılan olarak beklenmiyor: ilk denemede `init`
+   olayında sunucu `pending`, araç listesi boştu ve model aracı göremedi. `MCP_CONNECTION_NONBLOCKING=false`,
+   `MCP_TIMEOUT=60000` ile bağlantı bekleniyor. Bu deneme çalıştırması değerlendirmeye dahil değil.
+3. **Yalıtım.** `--setting-sources ""`, `--disable-slash-commands`, `--no-session-persistence` kullanılıyor ve
+   çalışma dizini boş bir geçici klasör. Böylece kullanıcının hook'ları, eklentileri ve proje dosyaları bağlama girmiyor.
+4. **Token ölçümü.** `claude` JSON çıktısındaki `modelUsage` alanı toplanıyor: bütün modeller ve bütün turlar.
+   Claude Code ana modelin yanında arka planda küçük bir modelle (Haiku) de çağrı yapıyor; bu çağrılar da sayılıyor.
+   Ham `usage` ve `modelUsage` kayıtta ayrıca duruyor.
+5. **"Ajan sayı üretti" kontrolü.** JSON satırındaki `n_total` ve `actual_power`, son başarılı araç sonucundaki
+   değerlerle birebir (`==`) karşılaştırılıyor. Araç çağrısı yoksa ya da değer farklıysa soru işaretleniyor.
+   Ek bir bilgi amaçlı kontrol, metinde soruda, araç argümanlarında ya da araç sonucunda karşılığı olmayan
+   sayıları listeliyor. Bu kontrol, deneme çalıştırmasında modelin kendiliğinden yazdığı "hücre başına ~36 kişi"
+   gibi durumlar için eklendi.
+6. **Puanlama.** χ² sorularında "doğru" için şunların hepsi gerekir:
+   - etiket doğru;
+   - araç argümanları beklenenle aynı (mode, w, α, güç ya da n; df ya da rows/cols'tan elde edilen df);
+   - N birebir aynı;
+   - güç 7 ondalıkta G\*Power ile aynı.
+
+   Desteklenmeyen ve belirsiz sorularda "doğru" için şunlar gerekir:
+   - etiket doğru;
+   - JSON'da sayı yok;
+   - başarılı araç çağrısı yok.
+
+   Sistem 1'de yönlendirmenin doğru sayılması:
+   - χ² sorusu → ajana geçmeli;
+   - bilinen ama desteklenmeyen aile → "yönlendir" ya da "sor" (ikisinde de N üretilmez);
+   - belirsiz soru → yalnızca "sor".
+7. **Kalibrasyon aralıkları:** 0.9–1.0, 0.75–0.9 (yönlendirme eşiği) ve < 0.75.
+
+### Sonuçlar
+
+Ölçüm 2026-10-18, abonelik girişiyle (Pro). Toplam **70 `claude -p` çağrısı** yapıldı: 10 ana ajan, 60 Sistem 1.
+Ayrıca 3 hata ayıklama çağrısı yapıldı; bunlar değerlendirmeye dahil değil. Ayrıntı:
+[tests/reports/agent_report.md](tests/reports/agent_report.md); kayıtlar `tests/reports/agent/main_runs.jsonl` ve
+`system1_runs.jsonl` dosyalarında (araç adı, argümanlar, sonuç, son cevap, süre, token).
+
+**Ana ajan (MCP yolu).** Model `opus` takma adıyla çağrıldı; claude çıktısında `claude-opus-4-8` göründü, yanında
+Claude Code'un arka plan çağrısı için `claude-haiku-4-5` var.
+
+| Ölçüt | Sonuç |
+|---|---|
+| Doğru seçim oranı (etiket, 10 soru) | **10/10** |
+| Doğru davranış (etiket + parametre + N/güç ya da sayısız yönlendirme) | **9/10** |
+| χ² sorularında parametre / N / güç (7 ondalık) | 6/6 / 6/6 / **5/6** |
+| "Ajan sayı üretti" bayrağı | **0** |
+| Ajanın gördüğü araçlar (`init`) | yalnızca `mcp__gpower-clone__chi2_contingency_power` |
+| Token (10 soru, tüm modeller) | 47 126 (girdi 6 075, önb. yazma 7 338, önb. okuma 30 348, çıktı 3 365) |
+| Süre (duvar saati) | 88.6 s (soru başına 6.7–16.4 s) |
+
+- **Q03 başarısızlığı.** Ajan aracı doğru argümanlarla çağırdı ve N = 964 doğru. Ancak JSON satırında
+  `actual_power` alanını boş (`null`) bıraktı ve metne "≈ 0,80" yazdı. Bu, yuvarlamama kuralının ihlali.
+  Puanlama bunu güç hatası saydı; sonuç ayarlanmadı.
+- **Diğer sorular.** Q07–Q09'da aile doğru tanındı, araç çağrılmadı, N üretilmedi ve araştırmacıya yönlendirildi.
+  Q10'da eksik bilgiler soruldu. Bilgi amaçlı metin kontrolü Q10'da yalnızca madde numaralarını ve önerilen yaygın
+  değerleri (α = 0,05, güç = 0,80) gösterdi; bunlar hesap sonucu değil.
+
+**Sistem 1** (`claude-haiku-4-5`, 10 soru × TR/EN × 3 tekrar = 60 çağrı, geçersiz çıktı 0):
+
+| | TR | EN |
+|---|---|---|
+| Etiket doğruluğu | 29/30 (%97) | 28/30 (%93) |
+| Yönlendirme doğruluğu | 30/30 | 30/30 |
+| Ortalama güven | 0.96 | 0.97 |
+| 0.9–1.0 güven aralığında gerçek doğruluk | 29/29 (%100) | 28/30 (%93) |
+
+- **Hatalar.** Hataların hepsi Q10'da (belirsiz soru): `unsupported` etiketi verildi (TR 1 kez, güven 0.75;
+  EN 2 kez, güven 0.95). İki etiket de "araştırmacıya sor" yoluna gittiği için yönlendirme yine doğru.
+- **Kalibrasyon.** İngilizcede "%95 güven"li iki yanlış var, yani İngilizcede güven biraz fazla. Türkçede tek yanlış
+  0.75 güvenle geldi.
+- **İki dilin karşılaştırması.** Türkçe ile İngilizce arasında anlamlı bir fark yok. Örnek az (soru başına 3 tekrar).
+
+**MCP ↔ GUI** (GUI ölçümleri `gui_results.json` ve `gui_overhead.json` dosyalarından okundu; değiştirilmedi):
+
+| | MCP | GUI |
+|---|---|---|
+| Token (yalnızca soru pencereleri) | 47 126 | 2 978 621 (63×) |
+| Token (hazırlık ve kapanış dahil) | 47 126 | 3 746 372 (80×) |
+| Süre | 88.6 s | 129.8 s |
+| Doğruluk | 9/10 | 10/10 |
+| Ekran görüntüsü | 0 | 16 |
+
+- **Adalet ve model notları** (raporda da var):
+  - MCP yolunda her soru ayrı bir süreçte, kendi başlangıç maliyetiyle çözüldü.
+  - GUI yolu tek uzun bir konuşmaydı ve birikmiş geçmişi yeniden okudu.
+  - GUI, Q07–Q10'da kullanılmadı.
+  - İki yolda modeller farklı: MCP'de `claude-opus-4-8`, GUI'de Opus 5.5.
+- **Q03'teki doğruluk farkı.** Fark motorda değil: araç doğru gücü döndürdü. Fark, ajanın bu değeri JSON satırına
+  aktarmamasından geliyor.
 
 ## SPEC v1.2 ile değişenler
 
