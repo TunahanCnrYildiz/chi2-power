@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gpower-clone"
+version = "0.1.0"
+description = "Chi-square contingency table power analysis (a priori / post hoc), clean-room rewrite compatible with G*Power 3.1.9.7"
+requires-python = ">=3.10"
+dependencies = [
+    "scipy>=1.10",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7",
+]
+diff = [
+    "statsmodels>=0.14",
+]
+
+[project.scripts]
+gpower-clone = "gpower_clone.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
