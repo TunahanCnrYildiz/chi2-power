@@ -211,3 +211,23 @@ def test_gui_section_table(tmp_path):
             "score": {"label_ok": True, "n_ok": True, "power_ok": True, "behavior_ok": True}}]
     md = gui_compare.section(path, mcp, eval_questions=EVAL["questions"])
     assert "MCP ↔ GUI" in md and "| Q01 |" in md and "bekleniyor" not in md
+
+
+def test_report_builds_from_records(tmp_path):
+    from gpower_clone.agent import evaluate
+
+    args = {"mode": "a-priori", "w": 0.3, "alpha": 0.05, "power": 0.95, "rows": 2, "cols": 2}
+    run = _run('{"label": "chi2-contingency", "n_total": 145, "actual_power": 0.9507851454132252}',
+               [{"name": TOOL, "arguments": args, "result": GOOD_RESULT, "is_error": False}])
+    run.update(usage={"input_tokens": 1, "cache_creation_input_tokens": 2, "cache_read_input_tokens": 3,
+                      "output_tokens": 4}, duration_s=5.0, duration_api_s=4.0, num_turns=2,
+               init_tools=[TOOL], model="claude-opus-x", model_usage={"claude-opus-x": {}})
+    main = [{"id": "Q01", **run, "score": scoring.score_main(Q["Q01"], run)}]
+    s1 = [{"id": "Q01", "lang": lang, "rep": 0, "prediction": {"label": "chi2-contingency", "confidence": 0.95},
+           "correct": True, "route": "agent", "route_ok": True, "duration_s": 1.0,
+           "usage": {"input_tokens": 1, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0,
+                     "output_tokens": 1}, "model_usage": {"claude-haiku-x": {}}} for lang in ("tr", "en")]
+    md = evaluate.build_report(EVAL["questions"], main, s1, tmp_path / "gui_results.json")
+    for needle in ("Doğru seçim oranı", "Ajan sayı üretti", "Kalibrasyon", "MCP yolu: token", "bekleniyor",
+                   "claude-opus-x", "claude-haiku-x"):
+        assert needle in md, needle
