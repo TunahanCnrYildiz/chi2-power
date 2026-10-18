@@ -168,3 +168,23 @@ def test_post_hoc_n_upper_limit():
     with pytest.raises(engine.InputError) as e:
         engine.post_hoc(w=0.1, alpha=0.05, n=2147483647, df=1.0)
     assert str(e.value) == "Total sample size is outside the admissible range (1, 2147483646)"
+
+
+# ---------- Tablo boyutundan df (ajan katmanı için) ----------
+
+@pytest.mark.parametrize("rows,cols,df", [(2, 2, 1.0), (3, 3, 4.0), (2, 3, 2.0), (4, 3, 6.0), (2.0, 5.0, 4.0)])
+def test_df_from_table(rows, cols, df):
+    assert engine.df_from_table(rows, cols) == df
+
+
+@pytest.mark.parametrize("rows,cols,message", [
+    (1, 3, "Number of rows must be an integer greater or equal two."),
+    (2.5, 3, "Number of rows must be an integer greater or equal two."),
+    (3, 1, "Number of columns must be an integer greater or equal two."),
+    (3, 0.5, "Number of columns must be an integer greater or equal two."),
+    (float("nan"), 3, "Number of rows must be an integer greater or equal two."),
+])
+def test_df_from_table_invalid(rows, cols, message):
+    with pytest.raises(engine.InputError) as e:
+        engine.df_from_table(rows, cols)
+    assert str(e.value) == message

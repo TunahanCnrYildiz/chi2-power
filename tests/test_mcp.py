@@ -86,6 +86,47 @@ def test_in_process_missing_parameter_is_error():
     assert r.structured_content == {"error": "Missing required parameter: power"}
 
 
+# ---------- (a2) rows/cols: MCP ↔ CLI ----------
+
+TABLE_CASES = [
+    # (MCP argümanları, CLI argümanları)
+    ({"mode": "a-priori", "w": 0.3, "alpha": 0.05, "power": 0.8, "rows": 3, "cols": 3},
+     ["--mode", "a-priori", "--w", "0.3", "--alpha", "0.05", "--power", "0.8", "--rows", "3", "--cols", "3"]),
+    ({"mode": "a-priori", "w": 0.1, "alpha": 0.05, "power": 0.8, "rows": 2, "cols": 3, "df": 2},
+     ["--mode", "a-priori", "--w", "0.1", "--alpha", "0.05", "--power", "0.8", "--rows", "2", "--cols", "3",
+      "--df", "2"]),
+    ({"mode": "post-hoc", "w": 0.25, "alpha": 0.05, "n": 200, "rows": 4, "cols": 3},
+     ["--mode", "post-hoc", "--w", "0.25", "--alpha", "0.05", "--n", "200", "--rows", "4", "--cols", "3"]),
+    ({"mode": "post-hoc", "w": 0.3, "alpha": 0.05, "n": 100, "rows": 2, "cols": 2, "df": 4},
+     ["--mode", "post-hoc", "--w", "0.3", "--alpha", "0.05", "--n", "100", "--rows", "2", "--cols", "2",
+      "--df", "4"]),
+    ({"mode": "post-hoc", "w": 0.3, "alpha": 0.05, "n": 100, "rows": 1, "cols": 2},
+     ["--mode", "post-hoc", "--w", "0.3", "--alpha", "0.05", "--n", "100", "--rows", "1", "--cols", "2"]),
+    ({"mode": "post-hoc", "w": 0.3, "alpha": 0.05, "n": 100, "rows": 3},
+     ["--mode", "post-hoc", "--w", "0.3", "--alpha", "0.05", "--n", "100", "--rows", "3"]),
+]
+
+
+@pytest.mark.parametrize("args,argv", TABLE_CASES, ids=[f"table-{i}" for i in range(len(TABLE_CASES))])
+def test_rows_cols_match_cli(args, argv):
+    from gpower_clone.mcp_server import server
+
+    async def go():
+        async with Client(server) as c:
+            return await c.call_tool(TOOL, args)
+
+    result = anyio.run(go)
+    p = subprocess.run([sys.executable, "-m", "gpower_clone", "--test", "chi2-contingency"] + argv,
+                       capture_output=True, text=True)
+    cli = json.loads(p.stdout)
+    if p.returncode == 0:
+        assert_same(result, p.returncode, cli)
+    else:
+        # Hata metinleri parametre adlarında farklıdır (MCP: "cols", CLI: "--cols"; NOTES.md, S-2).
+        assert result.is_error
+        assert result.structured_content == {"error": cli["error"].replace("--", "")}
+
+
 # ---------- (b) uçtan uca: stdio ----------
 
 E2E_IDS = ["G-001", "G-019", "G-005", "G-023", "G-026", "G-015"]
@@ -106,8 +147,8 @@ def test_stdio_end_to_end():
     assert [t.name for t in tools] == [TOOL]
     tool = tools[0]
     props = tool.input_schema["properties"]
-    assert set(props) == {"mode", "w", "alpha", "power", "n", "df"}
-    assert set(tool.input_schema["required"]) == {"mode", "w", "alpha", "df"}
+    assert set(props) == {"mode", "w", "alpha", "power", "n", "df", "rows", "cols"}
+    assert set(tool.input_schema["required"]) == {"mode", "w", "alpha"}
     assert props["mode"]["enum"] == ["a-priori", "post-hoc"]
     assert all(props[k].get("description") for k in props)
     assert tool.output_schema is not None

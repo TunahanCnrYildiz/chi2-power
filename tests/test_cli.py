@@ -134,3 +134,32 @@ def test_error_subprocess_exit_code():
                         "--df", "1"], capture_output=True, text=True)
     assert p.returncode != 0
     assert p.stdout == '{"error":"Total sample size is outside the admissible range (1, 2147483646)"}\n'
+
+
+# ---------- --rows / --cols ----------
+
+@pytest.mark.parametrize("rows,cols,df", [("2", "2", "1"), ("3", "3", "4"), ("2", "3", "2"), ("4", "3", "6")])
+def test_rows_cols_equivalent_to_df(rows, cols, df, capsys):
+    common = BASE + ["--mode", "a-priori", "--w", "0.3", "--alpha", "0.05", "--power", "0.8"]
+    _, by_df = run(common + ["--df", df], capsys)
+    code, by_table = run(common + ["--rows", rows, "--cols", cols], capsys)
+    assert code == 0 and by_table == by_df
+    code, both = run(common + ["--rows", rows, "--cols", cols, "--df", df], capsys)
+    assert code == 0 and both == by_df
+
+
+@pytest.mark.parametrize("extra,message", [
+    (["--rows", "3"], "Missing required parameter: --cols"),
+    (["--cols", "3"], "Missing required parameter: --rows"),
+    ([], "Missing required parameter: --df (or --rows and --cols)"),
+    (["--rows", "3", "--cols", "3", "--df", "2"],
+     "Inconsistent parameters: --df 2 does not match (--rows - 1) * (--cols - 1) = 4"),
+    (["--rows", "1", "--cols", "3"], "Number of rows must be an integer greater or equal two."),
+    (["--rows", "3", "--cols", "2.5"], "Number of columns must be an integer greater or equal two."),
+    (["--rows", "x", "--cols", "3"], "Invalid numeric value for --rows: 'x'"),
+])
+def test_rows_cols_errors(extra, message, capsys):
+    code, out = run(BASE + ["--mode", "post-hoc", "--w", "0.3", "--alpha", "0.05", "--n", "100"] + extra,
+                    capsys)
+    assert code != 0
+    assert out == {"error": message}
