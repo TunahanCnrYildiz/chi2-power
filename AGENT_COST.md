@@ -8,19 +8,30 @@
 
 ## Token ve maliyet
 
-Token sayıları iki oturumun Claude Code kayıt dosyalarındaki (`~/.claude/projects/…/*.jsonl`) `usage` alanlarından toplandı. Aynı mesaj kimliği bir kez sayıldı. Durum 18 Ekim 2026 itibarıyladır.
+Token sayıları her oturumun Claude Code kayıt dosyasındaki (`~/.claude/projects/…/*.jsonl`) `usage` alanlarından toplandı. Aynı mesaj kimliği bir kez sayıldı. Durum 18 Ekim 2026 itibarıyladır. Bütün oturumlar Claude Opus 5.5 ile çalıştı.
 
-| | Oturum 1 · inceleme | Oturum 2 · yazım | Toplam |
-|---|---|---|---|
-| Süre (ilk → son mesaj) | 16 Eki 15:59 → 18 Eki 13:20 (aralıklı) | 18 Eki 12:12 → 13:15 | — |
-| Kullanıcı mesajı | 33 | 2 | 35 |
-| Model çağrısı | 237 | 63 | 300 |
-| Araç çağrısı | 325 | 75 | 400 |
-| Önbelleksiz girdi token | 490 | 128 | 618 |
-| Önbelleğe yazılan girdi token | 868 107 | 146 888 | 1 014 995 |
-| Önbellekten okunan girdi token | 65 524 042 | 8 819 676 | 74 343 718 |
-| Çıktı token | 211 846 | 79 871 | 291 717 |
-| **API eşdeğeri maliyet (tahmin)** | **≈ 22 – 24 $** | **≈ 4 – 4.5 $** | **≈ 26 – 29 $** |
+| | Oturum 1 · inceleme | Oturum 2 · yazım | GUI yolu (1. deneme) | GUI yolu (ölçüm) | Toplam |
+|---|---|---|---|---|---|
+| Kullanıcı / üst oturum mesajı | 43 | 8 | 1 | 1 | 53 |
+| Model çağrısı | 287 | 169 | 8 | 31 | 495 |
+| Araç çağrısı | 389 | 196 | 8 | 34 | 627 |
+| Önbelleğe yazılan girdi token | 1 034 065 | 348 457 | 58 772 | 111 836 | 1 553 130 |
+| Önbellekten okunan girdi token | 96 614 805 | 40 299 955 | 660 951 | 3 620 256 | 141 195 967 |
+| Çıktı token | 282 140 | 194 787 | 2 157 | 14 218 | 493 302 |
+| **API eşdeğeri maliyet (tahmin)** | **≈ 30 – 33 $** | **≈ 14 – 15 $** | **≈ 0.5 $** | **≈ 1.6 – 1.9 $** | **≈ 46 – 50 $** |
+
+Önbelleksiz girdi her oturumda birkaç yüz token düzeyinde olduğu için tabloya alınmadı.
+
+**Ajanın kendi çalıştırmaları.** Ajan katmanının değerlendirmesi ayrıca 140 `claude -p` çağrısı yaptı. Bunlar yukarıdaki oturumların dışındadır:
+
+| Çalıştırma | Çağrı | Token |
+|---|---|---|
+| Ana ajan, Opus 5.5 (ana sonuç) | 10 | 50 811 |
+| Ana ajan, Opus 4.8 (eski CLI'deki ilk çalıştırma) | 10 | 47 126 |
+| Sistem 1, Haiku 5.5 (ana sonuç) | 60 | 109 482 |
+| Sistem 1, Haiku 4.5 (ilk çalıştırma) | 60 | 175 959 |
+
+Bu çağrıların toplam maliyeti birkaç dolar mertebesindedir; ayrıntılar `tests/reports/agent_report.md` dosyasında.
 
 **Maliyet hesabı.** Opus 5.5 liste fiyatları (1M token başına):
 
@@ -31,7 +42,11 @@ Token sayıları iki oturumun Claude Code kayıt dosyalarındaki (`~/.claude/pro
 | Önbellekten okuma | 0.20 $ | |
 | Önbelleğe yazma | 5 $ – 8 $ | 5 dakikalık önbellek ≈ girdi × 1.25; 1 saatlik ≈ × 2. Hangi sürenin kullanıldığı kayıtta ayrışmadığı için aralık verildi. |
 
-**Maliyetin dağılımı.** Girdinin yaklaşık %98.6'sı önbellekten okundu; her model çağrısı konuşma geçmişini yeniden gönderir. İnceleme oturumunda maliyetin yarıdan fazlası (~%55–60) bu okumalardan, yaklaşık beşte biri çıktıdan geliyor. Oturum uzadıkça her çağrı daha pahalı hâle geldi.
+Çalışma Pro abonelik kapsamında yapıldı; ayrıca API ücreti ödenmedi.
+
+**Maliyetin dağılımı.**
+- Girdinin %98'den fazlası önbellekten okundu; her model çağrısı konuşma geçmişini yeniden gönderir.
+- İnceleme oturumunda maliyetin yarıdan fazlası bu okumalardan geliyor. Oturum uzadıkça her çağrı daha pahalı hâle geldi.
 
 **REA / Ghidra.** REA çağrıları model token'ı harcamaz, yerel bilgisayarda çalışır. Toplam 37 REA CLI çalıştırması yapıldı:
 
@@ -64,8 +79,17 @@ Her çalıştırma Ghidra analizini baştan yaptığı için ~90 saniye sürdü;
 1. İlk tur: kabul testleri (kırmızı) → motor ve CLI (yeşil) → diferansiyel düzenek → NOTES.
 2. SPEC v1.2 düzeltmeleri: yine önce kırmızı testler, sonra yeşil kod.
 3. MCP sunucusu (bonus): kırmızı testler → ortak katman `service.py` ve `mcp_server.py` (yeşil) → NOTES.
+4. AI ajanı (bonus): rows/cols → df motorda; Sistem 1 ve MCP ajanı; değerlendirme ve MCP ↔ GUI karşılaştırması.
+   - Gerçek çalıştırmalar iki kez engellendi: önce `claude` CLI'de giriş yoktu, sonra eski CLI Opus 5.5'i desteklemiyordu. Kullanıcı girişi yaptı ve CLI'yi güncelletti.
+   - Ölçüm, GUI yoluyla aynı model olsun diye Opus 5.5 ile tekrarlandı. Prompt ve puanlama tekrarda değiştirilmedi.
 
-Hiçbir turda bir vektör için sayı ayarı yapılmadı. Token tablosu ilk iki turu kapsar.
+Hiçbir turda bir vektör için sayı ayarı yapılmadı.
+
+### GUI yolu
+
+İki oturum:
+1. İlk oturumda bilgisayar kullanımı araçları yoktu: ayar, oturum açıldıktan sonra açılmıştı ve araçlar ancak oturum başlarken yükleniyor. Bu oturum hiçbir soruyu çözmedi.
+2. İkinci oturum 10 soruyu ~130 saniyede, 16 ekran görüntüsüyle çözdü.
 
 ### Ajan hataları
 
@@ -79,7 +103,12 @@ Hiçbir turda bir vektör için sayı ayarı yapılmadı. Token tablosu ilk iki 
 4. **"Argüman" ile "davranış"ı ayırırdım.** Bir fonksiyona geçirilen sabiti (1e-10), fonksiyonun içinde nasıl kullanıldığını görmeden "tolerans" diye SPEC'e yazmazdım (H-003). Garip görünen decompile çıktısını da hata saymadan önce montajla doğrulardım (H-001).
 5. **Oracle vektörlerini SPEC'ten önce toplatırdım.** 30 vektör geldikten sonra 4 ayrıntı düzeltildi: hata mesajlarının tam metni, kesirli df, ekrandaki değişken basamak sayısı ve G-013'teki dev N. Vektörler daha erken gelse SPEC v1.0 daha az revizyon gerektirirdi.
 6. **Hocaya sözleşmeyi ilk gün sorardım.** χ²'ye özgü parametre adları hâlâ çıkarım. Classroom'a ilk gün yazılacak bir soru bu belirsizliği erkenden kapatırdı.
-7. **İnceleme oturumunu daha kısa tutardım.** Maliyetin büyük kısmı, uzayan oturumun geçmişini her çağrıda yeniden okumaktan geldi. Kurulum, inceleme ve SPEC yazımı ayrı oturumlara bölünseydi (her biri kısa bir devir notuyla) token kullanımı belirgin şekilde düşerdi.
+7. **Ölçüm ortamını en başta doğrulardım.** Ajan ölçümünden önce şunları kontrol etmek, iki gereksiz turu ve bir yeniden ölçümü önlerdi:
+   - `claude` CLI'de giriş var mı (`claude auth status`)?
+   - CLI sürümü hedef modeli destekliyor mu?
+   - Model, takma ad yerine açık kimlikle (`claude-opus-5-5`) mi verildi?
+   - Bilgisayar kullanımı oturum açılmadan önce açık mı?
+8. **İnceleme oturumunu daha kısa tutardım.** Maliyetin büyük kısmı, uzayan oturumun geçmişini her çağrıda yeniden okumaktan geldi. Kurulum, inceleme ve SPEC yazımı ayrı oturumlara bölünseydi (her biri kısa bir devir notuyla) token kullanımı belirgin şekilde düşerdi.
 
 ## Süreç notları
 
@@ -92,3 +121,4 @@ Hiçbir turda bir vektör için sayı ayarı yapılmadı. Token tablosu ilk iki 
   - Yazım oturumunun 4 sorusu SPEC v1.2'de yanıtlandı ve koda uygulandı; kod ana repoya geçmişiyle birleştirildi.
   - Sonuç: 94/94 test geçti, kâhinde 30/30 vektör tuttu, KAPI %93.33.
   - MCP sunucusu (bonus) yazım oturumunda eklendi ve birleştirildi: 128/128 test geçti, 30 vektörde CLI ile birebir aynı çıktı.
+  - AI ajanı (bonus) eklendi ve ölçüldü (Opus 5.5 / Haiku 5.5): doğru seçim 10/10, Sistem 1 TR 30/30, EN 30/30. MCP ↔ GUI: 50 811 token'a karşı 2 978 621 token (hazırlık dahil 3 746 372). 187/187 test geçti.

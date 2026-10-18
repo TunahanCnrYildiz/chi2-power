@@ -3,7 +3,7 @@
 > **Yapılan katmanlar**
 > - ✅ **Temel katman (CLI):** tamamlandı. KAPI geçti: N tam eşleşme %93.33; doğrulanabilir vektörlerde %100.
 > - ✅ **MCP sunucusu (+15):** tamamlandı. Tek araç `chi2_contingency_power`; aynı motoru çağıran ince bir adaptör. 30 vektörde CLI ile birebir aynı çıktı ([aşağıda](#mcp-sunucusu-bonus-katman)).
-> - ☐ AI ajanı (+10): yapılmadı
+> - ✅ **AI ajanı (+10):** tamamlandı. Türkçe klinik soruyu MCP aracıyla yanıtlıyor. Doğru seçim 10/10. Ölçülmüş MCP ↔ GUI karşılaştırması: GUI yolu ≈ 59–74× token harcıyor. Jev yerine etiketle kısıtlı LLM kullanıldı ([aşağıda](#ai-ajanı-bonus-katman)).
 
 G\*Power 3.1.9.7'nin **χ² testi, olumsallık tablosu** hesabının temiz oda yöntemiyle yeniden yazımıdır.
 `gpower-clone` G\*Power değildir ve G\*Power ekibiyle bir bağı yoktur (bkz. [Atıf](#atıf)).
@@ -75,7 +75,7 @@ gpower-clone --test chi2-contingency --mode a-priori --w 0.3 --alpha 0.05 --powe
 .venv/Scripts/python tests/statsmodels_vectors.py
 ```
 
-- `pytest` şunları çalıştırır: kabul testleri (SPEC §6'nın her vektörü ayrı test), motor ve CLI birim testleri, G\*Power kâhinine karşı KAPI testi, 894 vektörlük statsmodels regresyonu ve MCP testleri.
+- `pytest` şunları çalıştırır: kabul testleri (SPEC §6'nın her vektörü ayrı test), motor ve CLI birim testleri, G\*Power kâhinine karşı KAPI testi, 894 vektörlük statsmodels regresyonu ve MCP ve ajan testleri (ajan testleri sahte bir `claude` çalıştırıcısıyla; gerçek ölçümler `python -m gpower_clone.agent.evaluate` ile).
 - `differential.py` CLI'yi gerçek bir alt süreç olarak çalıştırır ve sonucu G\*Power'ın ekrandaki basamak sayısıyla karşılaştırır.
 - `statsmodels_vectors.py`, statsmodels `GofChisquarePower` ile 894 vektör üretir ve karşılaştırır.
 
@@ -83,7 +83,7 @@ gpower-clone --test chi2-contingency --mode a-priori --w 0.3 --alpha 0.05 --powe
 
 | Ölçüm | Sonuç | Kaynak |
 |---|---|---|
-| pytest | **128 geçti, 0 atlandı** | `tests/` |
+| pytest | **187 geçti, 0 atlandı** | `tests/` |
 | G\*Power arayüz vektörleri (kâhin) | **30/30** vektör tüm alanlarda tutuyor (23 hesap + 7 hata mesajı) | [`tests/reports/differential_report.md`](tests/reports/differential_report.md) |
 | **KAPI** (N tam eşleşme, eşik %90) | **%93.33 → GEÇTİ.** Doğrulanabilir vektörlerde %100. | aynı rapor |
 | statsmodels ölçek testi | 894 vektör (594 a priori, 300 post hoc), **uyuşmazlık yok** | [`tests/reports/statsmodels_report.md`](tests/reports/statsmodels_report.md) |
@@ -179,6 +179,85 @@ Claude Desktop'a eklemek için `claude_desktop_config.json` dosyasına:
 | Uçtan uca | Sunucu stdio üzerinden gerçek bir MCP istemcisiyle başlatılıyor. Araç listesi ve şemalar doğrulanıyor; 2 a priori, 2 post hoc ve 2 hata vektörü CLI ile karşılaştırılıyor. |
 | İnce adaptör | MCP modülünde hesap kodu olmadığı kaynak düzeyinde denetleniyor. |
 
+## AI ajanı (bonus katman)
+
+Hekimin Türkçe klinik sorusunu, MCP aracını çağırarak yanıtlayan bir ajan. **Ajan hesap yapmaz.** Bütün sayılar motordan gelir; ajan yalnızca soruyu araç argümanlarına çevirir ve aracın sonucunu aktarır.
+
+```
+Hekimin Türkçe sorusu
+  └─ Sistem 1   (claude-haiku-5-5; araç yok; çıktı yalnızca {"label", "confidence"})
+       ├─ chi2-contingency ve güven ≥ 0.75  → MCP ajanı
+       ├─ bilinen ama desteklenmeyen aile    → "bu araç desteklemiyor, araştırmacıya danışın"
+       └─ ambiguous / unsupported / güven < 0.75 → "araştırmacıya sorun"
+  └─ MCP ajanı  (claude-opus-5-5; tek araç: chi2_contingency_power)
+       └─ MCP sunucusu → service.compute → engine
+```
+
+### Ajanın hesap yapmadığı nasıl güvence altında?
+
+- Ajanın yerleşik araçlarının hepsi kapalı. Yalnızca gpower-clone MCP sunucusu bağlı ve izinli tek araç `chi2_contingency_power`. Kayıttaki `init` olayı bunu her çalıştırmada doğruluyor.
+- Hekim "3×3 tablo" der. Ajan bunu `rows = 3, cols = 3` olarak iletir; df = (r − 1)(c − 1) hesabını **motor** yapar (`engine.df_from_table`).
+- Cohen w eşlemesi (küçük 0,1 · orta 0,3 · büyük 0,5) bir hesap değil, bir sözlük eşlemesidir.
+- Değerlendirme, ajanın son JSON satırındaki her sayıyı aracın döndürdüğü sayıyla birebir karşılaştırır. Ölçülen 10 soruda "ajan sayı üretti" bayrağı **0 kez** kalktı.
+
+**Jev hakkında not.** Jev erişimimiz olmadığı için Sistem 1 adımında, yönergenin izin verdiği gibi **7 etiketle kısıtlanmış bir LLM** kullanıldı: `claude-haiku-5-5`, araçsız. Çıktısı bir JSON şemasıyla yalnızca etiket ve güvenle sınırlandı. Sistem 1 hiçbir sayı (N, güç, etki büyüklüğü) üretmez.
+
+### Değerlendirme seti
+
+[`tests/agent/eval_set.json`](tests/agent/eval_set.json) dosyasında 10 kurgusal Türkçe soru var; her birinin İngilizce çevirisi de dosyada. Sorular gerçek hasta verisi içermez.
+
+| Soru grubu | Adet | Beklenen değerlerin kaynağı |
+|---|---|---|
+| χ² olumsallık soruları (4 a priori, 2 post hoc) | 6 | G\*Power oracle vektörleri: G-001, G-002, G-003, G-004, G-005, G-030 |
+| Desteklenmeyen aileler (t2-indep, t-paired, anova-oneway) | 3 | Beklenen davranış: aileyi tanı, N üretme, araştırmacıya yönlendir |
+| Belirsiz soru | 1 | Beklenen davranış: tahmin yapma, eksik bilgiyi sor |
+
+### Sonuçlar (Opus 5.5 / Haiku 5.5)
+
+| Ölçüm | Sonuç |
+|---|---|
+| **Doğru seçim oranı** (test ailesi etiketi) | **10/10** |
+| Doğru davranış (etiket + parametre + N/güç, ya da sayı vermeden yönlendirme) | **10/10** |
+| χ² sorularında parametre / N / güç (7 ondalık) | 6/6 · 6/6 · 6/6 |
+| "Ajan sayı üretti" | 0 |
+| Sistem 1 etiket doğruluğu (her soru 3 tekrar) | **TR 30/30 · EN 30/30** |
+| Sistem 1 kalibrasyonu | Güven 0.9–1.0: 56 tahmin, %100 doğru · 0.75–0.9: 4 tahmin, %100 doğru · <0.75: tahmin yok |
+
+Ayrıntılı rapor [`tests/reports/agent_report.md`](tests/reports/agent_report.md) dosyasında: soru bazında tablo, kalibrasyon ve TR/EN karşılaştırması. Araç çağrı kayıtları da tutuluyor:
+
+| Kayıt | İçerik |
+|---|---|
+| [`tests/reports/agent/main_runs.jsonl`](tests/reports/agent/main_runs.jsonl) | Her soru için araç çağrıları (ad, argüman, sonuç), son cevap, token ve süre |
+| [`tests/reports/agent/system1_runs.jsonl`](tests/reports/agent/system1_runs.jsonl) | Sistem 1 çağrıları |
+| [`tests/reports/agent/gui/`](tests/reports/agent/gui/) | GUI yolunun ham kayıtları |
+
+**Önceki çalıştırma da raporda duruyor.** Makinedeki eski `claude` CLI'de `--model opus` ilk çalıştırmada Opus 4.8'e çözüldü. Bu çalıştırma raporda ayrı bir bölümde korunuyor:
+- Etiket doğruluğu 10/10, davranış 9/10.
+- Q03'te ajan doğru N'yi (964) aktardı, ama güç alanını boş bırakıp metne yaklaşık bir değer ("≈ 0,80") yazdı; değerlendirme bunu hata saydı.
+- GUI yoluyla aynı modeli kullanmak için CLI güncellendi ve ölçüm Opus 5.5 ile tekrarlandı. Prompt ve puanlama tekrarda değiştirilmedi.
+
+### MCP ↔ GUI karşılaştırması (ölçülmüş)
+
+Aynı 10 soru iki yoldan da çözüldü; iki yolda da ana model **Opus 5.5**.
+- **MCP yolu:** Ajan her soruyu ayrı bir `claude -p` çağrısında, MCP aracıyla çözdü.
+- **GUI yolu:** Ayrı bir Claude Code oturumu G\*Power'ı bilgisayar kullanımıyla, ekran görüntüsü alıp tıklayarak kullandı. Token sayıları o oturumun kaydından, soru başına zaman pencerelerine göre ölçüldü.
+
+| | MCP yolu | GUI yolu |
+|---|---|---|
+| Doğruluk | 10/10 | 10/10 |
+| Token (yalnızca soru pencereleri) | **50 811** | **2 978 621** (≈ 59×) |
+| Token (hazırlık ve kapanış dahil) | 50 811 | 3 746 372 (≈ 74×) |
+| Süre (soru pencereleri) | 124 s | 130 s |
+| Ekran görüntüsü | 0 | 16 (6 χ² sorusunda) |
+
+**Adalet notu.**
+- MCP yolunun her sorusu kendi başlangıç maliyetini taşır: süreç açılışı, sistem prompt'u, araç şeması. Süreleri de bu başlangıcı içerir.
+- GUI yolu tek uzun bir konuşmadır: her model çağrısı birikmiş geçmişi ve ekran görüntülerini yeniden okur. Fark büyük ölçüde bu önbellek okumalarından gelir.
+- GUI yolu, kapsam dışı ve belirsiz 4 soruda (Q07–Q10) G\*Power'ı hiç kullanmadı.
+- Tam tablo ve yöntem: [`tests/reports/agent_report.md`](tests/reports/agent_report.md).
+
+**Sonuç.** Hesap aynı, doğruluk aynı. Ama ekran görüntüsüyle çalışan bir ajan, aynı soruyu metin tabanlı bir araçla çözen ajana göre yaklaşık 60–75 kat daha fazla token harcıyor. Bu, yönergedeki "her arayüz bir maliyet transferidir" tezinin bu çalışmadaki ölçülmüş karşılığı.
+
 ## Ajanın söktüğü şeyin DOĞRU olduğunu nasıl kanıtladık?
 
 Tek bir kanıta güvenmedik. Her iddia, birbirinden bağımsız katmanlardan geçti. Bir katman yanılırsa bir sonraki katmanın yakalaması gerekiyordu, ve nitekim yakaladı (bkz. 5. madde).
@@ -259,8 +338,8 @@ Yönergedeki "eşit olmayan grup oranı" sınır değeri bu teste uygulanamaz: g
 | `AGENT_COST.md` | Ajan, token, maliyet, iterasyon ve "neyi farklı yapardım" |
 | `prompts/` | İki oturumun ilk prompt'ları |
 | `oracle/` | G\*Power vektörleri (CSV) ve ekran görüntüleri |
-| `src/gpower_clone/` | `engine.py` (hesabın tek yeri), `service.py` (CLI ve MCP'nin ortak katmanı), `cli.py` ve `mcp_server.py` (ince katmanlar) |
-| `tests/` | Kabul, birim, CLI ve MCP testleri; diferansiyel test; statsmodels karşılaştırması; `tests/reports/` uyum raporları |
+| `src/gpower_clone/` | `engine.py` (hesabın tek yeri), `service.py` (CLI ve MCP'nin ortak katmanı), `cli.py` ve `mcp_server.py` (ince katmanlar), `agent/` (Sistem 1, MCP ajanı, değerlendirme) |
+| `tests/` | Kabul, birim, CLI, MCP ve ajan testleri; diferansiyel test; statsmodels karşılaştırması; `tests/agent/eval_set.json`; `tests/reports/` uyum raporları, ajan raporu ve kayıtları |
 | `NOTES.md` | Yazım oturumunun tasarım kararları ve SPEC'e soruları |
 
 ## Demo
