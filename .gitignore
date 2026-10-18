@@ -37,3 +37,6 @@ Thumbs.db
 
 # --- Ders materyali (öğrenci kişisel verisi içerir; repoya ASLA girmez) ---
 Ogrenciler_gruplar.*
+
+# --- Ders yönergesi (kaynak materyal; repoya girmez) ---
+2026-10-16-odev-supp

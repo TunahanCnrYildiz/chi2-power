@@ -1,4 +1,4 @@
-# YZM301 Teardown Sprint · χ² Olumsallık Tablosu (Konu 4)
+# chi2-power · χ² Olumsallık Tablosu Güç Analizi
 
 > **Yapılan katmanlar**
 > - ✅ **Temel katman (CLI):** tamamlandı. KAPI geçti: N tam eşleşme %93.33; doğrulanabilir vektörlerde %100.
@@ -296,7 +296,7 @@ Tek bir kanıta güvenmedik. Her iddia, birbirinden bağımsız katmanlardan ge�
 | İncelenen çalıştırılabilir | `GPowerNT.exe` (FileVersion 3.1.9.7) |
 | `GPowerNT.exe` SHA-256 | `C63E6A133EB6372932F810C08CC33DC35A06D1DDB658F897BD6C34A754EFC812` |
 
-> Not: Ödev metni dosyayı "GPower.exe" diye anıyor; 3.1.9.7 Windows dağıtımında çalıştırılabilir dosyanın adı `GPowerNT.exe`.
+> Not: Yönerge dosyayı "GPower.exe" diye anıyor; 3.1.9.7 Windows dağıtımında çalıştırılabilir dosyanın adı `GPowerNT.exe`.
 > Binary bu repoda yer almaz (`.gitignore`). Ham decompile çıktıları da repoya konmadı; LEDGER'da yalnızca adres ve kısa alıntı var.
 
 ## Kurulum kontrolü
@@ -353,4 +353,4 @@ G\*Power, Franz Faul, Edgar Erdfelder, Albert-Georg Lang ve Axel Buchner tarafı
 - Faul, F., Erdfelder, E., Lang, A.-G., & Buchner, A. (2007). G\*Power 3: A flexible statistical power analysis program for the social, behavioral, and biomedical sciences. *Behavior Research Methods, 39*, 175–191.
 - Faul, F., Erdfelder, E., Buchner, A., & Lang, A.-G. (2009). Statistical power analyses using G\*Power 3.1: Tests for correlation and regression analyses. *Behavior Research Methods, 41*, 1149–1160.
 
-Bu çalışma YZM301 dersi kapsamında, eğitim amacıyla yapılmıştır. G\*Power yalnızca resmi sayfasından dağıtılır; bu repo G\*Power'ın hiçbir dosyasını içermez.
+Bu çalışma eğitim amacıyla yapılmıştır. G\*Power yalnızca resmi sayfasından dağıtılır; bu repo G\*Power'ın hiçbir dosyasını içermez.
