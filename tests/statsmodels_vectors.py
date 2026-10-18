@@ -10,7 +10,7 @@ tamsayıya çevirir: n_total = ⌈ ⌊N·10¹⁰ + 0.5⌋ / 10¹⁰ ⌉. Beklene
 n_total = ⌈N_sm⌉ (N_sm bir tamsayıya 5·10⁻¹¹'den yakın değilse).
 
 Kullanım:
-    python tests/statsmodels_vectors.py [--out reports]
+    python tests/statsmodels_vectors.py [--out tests/reports]
 """
 
 from __future__ import annotations
@@ -31,6 +31,7 @@ from statsmodels.stats.power import GofChisquarePower
 from gpower_clone import cli, engine
 
 ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_OUT = ROOT / "tests" / "reports"
 
 A_PRIORI_GRID = dict(
     w=[0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.7, 0.9, 1.2],
@@ -168,7 +169,7 @@ def build_report(ap: list[dict], ph: list[dict]) -> str:
 
 def main(argv=None) -> int:
     ap_ = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap_.add_argument("--out", type=Path, default=ROOT / "reports")
+    ap_.add_argument("--out", type=Path, default=DEFAULT_OUT)
     a = ap_.parse_args(argv)
     ap = list(a_priori_rows())
     ph = list(post_hoc_rows())

@@ -4,7 +4,7 @@ Her satır için CLI gerçek bir alt süreç olarak çalıştırılır ve çıkt
 G*Power ekranındaki metinle o metnin basamak sayısında karşılaştırılır (SPEC §3).
 
 Kullanım:
-    python tests/differential.py [--csv oracle/vectors.csv] [--report reports/differential_report.md]
+    python tests/differential.py [--csv oracle/vectors.csv] [--report tests/reports/differential_report.md]
                                  [--cmd "gpower-clone"] [--gate 0.90]
 
 Çıkış kodu: KAPI sağlanırsa 0, sağlanmazsa 1, CSV yoksa 2.
@@ -26,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from displaycmp import display_digits, format_like, matches_display  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_REPORT = ROOT / "tests" / "reports" / "differential_report.md"
 INPUT_COLS = (("w", "--w"), ("alpha", "--alpha"), ("power", "--power"),
               ("n_total_in", "--n"), ("df", "--df"))
 # (CSV sütunu, JSON alanı)
@@ -220,7 +221,7 @@ def build_report(results: list[VectorResult], csv_path: Path, threshold: float) 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--csv", type=Path, default=ROOT / "oracle" / "vectors.csv")
-    ap.add_argument("--report", type=Path, default=None, help="Markdown rapor dosyası")
+    ap.add_argument("--report", type=Path, default=DEFAULT_REPORT, help="Markdown rapor dosyası")
     ap.add_argument("--cmd", default=None, help="CLI komutu (varsayılan: python -m gpower_clone)")
     ap.add_argument("--gate", type=float, default=0.90)
     a = ap.parse_args(argv)
@@ -230,9 +231,8 @@ def main(argv: list[str] | None = None) -> int:
     cmd = shlex.split(a.cmd) if a.cmd else default_cmd()
     results = run_csv(a.csv, cmd)
     report, passed = build_report(results, a.csv, a.gate)
-    if a.report:
-        a.report.parent.mkdir(parents=True, exist_ok=True)
-        a.report.write_text(report, encoding="utf-8")
+    a.report.parent.mkdir(parents=True, exist_ok=True)
+    a.report.write_text(report, encoding="utf-8")
     sys.stdout.reconfigure(encoding="utf-8")
     print(report)
     return 0 if passed else 1

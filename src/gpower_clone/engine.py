@@ -13,14 +13,15 @@ from typing import Callable
 
 from scipy.stats import chi2, ncx2
 
-EPS = 2.220446049250313e-16  # makine epsilonu (double)
 
 ALPHA_MIN, ALPHA_MAX = 1e-7, 0.9999999
 POWER_MIN, POWER_MAX = 1e-7, 0.9999999
 W_MIN_A_PRIORI = 1e-6
 N_MIN, N_MAX = 1, 2147483646
 
-BRENT_TOL = 1e-10
+# §4.5/3 durma ölçütü: |yarım aralık| ≤ BRENT_REL_TOL·|b| ya da f(b) = 0.
+# (Çağrıda geçirildiği belirtilen 1e-10'un durma koşulunda kullanımı gözlenmedi.)
+BRENT_REL_TOL = 1.1102230246251565e-16
 BRENT_MAXITER = 300
 
 MSG_DF = "Degrees of Freedom must be greater or equal one."
@@ -32,15 +33,15 @@ MSG_W_A_PRIORI = "Effect size w must be greater 1e-06."
 MSG_W_POST_HOC = "Effect size w must be non-negative."
 # Tasarım kararları (SPEC'te mesaj yok):
 MSG_N_INTEGER = "Total sample size must be an integer."  # A-3
-MSG_NO_ROOT = "Unable to find a total sample size for the given parameters."
+MSG_BRACKET_OVERFLOW = "Unable to bracket the total sample size (upper bound overflow)."
 
 
 class InputError(ValueError):
     """Geçersiz girdi; mesaj G*Power'ın mesajıyla birebir aynıdır (SPEC §2.2)."""
 
 
-class RootNotFound(ArithmeticError):
-    """Kök bulucu uç noktalarda aynı işaret gördü ya da yakınsamadı (SPEC §4.5/3)."""
+class BracketOverflow(ArithmeticError):
+    """Aralık genişletmede üst sınır sonsuza taştı (G*Power'da gözlenmedi; tasarım kararı)."""
 
 
 @dataclass(frozen=True)
@@ -85,7 +86,7 @@ def find_bracket(f: Callable[[float], float], a: float = 1.0, start: float = 100
         while f(hi) < 0:
             lo, hi = hi, hi * 1.6
             if math.isinf(hi):
-                raise RootNotFound("upper bound overflow")
+                raise BracketOverflow()
     else:
         hi = start
         x = (a + start) * 0.5
@@ -99,15 +100,18 @@ def find_bracket(f: Callable[[float], float], a: float = 1.0, start: float = 100
 
 
 def brent(f: Callable[[float], float], a: float, b: float,
-          tol: float = BRENT_TOL, maxiter: int = BRENT_MAXITER) -> float:
-    """Brent kök bulucu (ikiye bölme + ters kuadratik / sekant), SPEC §4.5/3."""
+          rel_tol: float = BRENT_REL_TOL, maxiter: int = BRENT_MAXITER) -> float:
+    """Brent kök bulucu (ikiye bölme + ters kuadratik / sekant), SPEC §4.5/3.
+
+    Hata vermez: uçlarda f aynı işaretliyse 0, iterasyon sınırı dolarsa son tahmin b döner.
+    """
     fa, fb = f(a), f(b)
     if fa == 0:
         return a
     if fb == 0:
         return b
     if (fa > 0) == (fb > 0):
-        raise RootNotFound("f has the same sign at both ends")
+        return 0.0
     c, fc = b, fb
     d = e = b - a
     for _ in range(maxiter):
@@ -117,7 +121,7 @@ def brent(f: Callable[[float], float], a: float, b: float,
         if abs(fc) < abs(fb):
             a, b, c = b, c, b
             fa, fb, fc = fb, fc, fb
-        tol1 = 2.0 * EPS * abs(b) + 0.5 * tol
+        tol1 = rel_tol * abs(b)
         xm = 0.5 * (c - b)
         if abs(xm) <= tol1 or fb == 0:
             return b
@@ -141,15 +145,19 @@ def brent(f: Callable[[float], float], a: float, b: float,
         else:
             d = e = xm
         a, fa = b, fb
-        b += d if abs(d) > tol1 else math.copysign(tol1, xm)
+        step = d if abs(d) > tol1 else math.copysign(tol1, xm)
+        nb = b + step
+        if nb == b:  # tol1 yarım ulp mertebesinde: adım b'yi değiştirmeyebilir
+            nb = math.nextafter(b, b + xm)
+        b = nb
         fb = f(b)
-    raise RootNotFound("maximum number of iterations exceeded")
+    return b
 
 
 def round_n(n: float) -> int:
-    """SPEC §4.5/4–5: önce 10 ondalığa yuvarla, sonra yukarı yuvarla; en az 1."""
+    """SPEC §4.5/4: önce 10 ondalığa yuvarla, sonra yukarı yuvarla."""
     n10 = math.floor(n * 1e10 + 0.5) / 1e10
-    return max(N_MIN, math.ceil(n10))
+    return math.ceil(n10)
 
 
 # ---------- Doğrulama (SPEC §2.1, §2.2) ----------
@@ -179,7 +187,10 @@ def a_priori(w: float, alpha: float, power: float, df: float) -> Result:
         raise InputError(MSG_POWER_LT_ALPHA)
 
     crit = critical_value(alpha, df)
-    n_total = round_n(_solve_n(w, power, crit, df))
+    n_frac, lo = _solve_n(w, power, crit, df)
+    n_total = round_n(n_frac)
+    if n_total < lo:  # §4.5/5 alt sınır kuralı (alt ≥ 1)
+        n_total = round_n(lo)
     ncp = w * w * n_total
     return Result(
         n_total=n_total,
@@ -192,26 +203,19 @@ def a_priori(w: float, alpha: float, power: float, df: float) -> Result:
 
 def fractional_n(w: float, alpha: float, power: float, df: float) -> float:
     """Yuvarlamadan önceki kesirli N (§4.5/1–3); diferansiyel testler için. Girdi doğrulamaz."""
-    return _solve_n(w, power, critical_value(alpha, df), df)
+    return _solve_n(w, power, critical_value(alpha, df), df)[0]
 
 
-def _solve_n(w: float, power: float, crit: float, df: float) -> float:
+def _solve_n(w: float, power: float, crit: float, df: float) -> tuple[float, float]:
+    """§4.5/1–3: (kök bulucunun sonucu, aralığın alt ucu)."""
     def f(n: float) -> float:
         return power_at(w, n, crit, df) - power
 
     try:
         lo, hi = find_bracket(f)
-    except RootNotFound:
-        raise InputError(MSG_NO_ROOT) from None
-    try:
-        return brent(f, lo, hi)
-    except RootNotFound:
-        # Tasarım kararı: alt uçta (N = 1) güç hedefe zaten ulaşıyorsa
-        # (ör. güç = α, G-007) aralıkta işaret değişimi yoktur; en küçük
-        # N alt uçtur. Aksi hâlde hata.
-        if f(lo) >= 0:
-            return lo
-        raise InputError(MSG_NO_ROOT) from None
+    except BracketOverflow:
+        raise InputError(MSG_BRACKET_OVERFLOW) from None
+    return brent(f, lo, hi), lo
 
 
 def post_hoc(w: float, alpha: float, n: float, df: float) -> Result:

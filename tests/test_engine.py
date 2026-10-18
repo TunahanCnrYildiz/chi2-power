@@ -96,7 +96,8 @@ def test_a_priori_has_no_root_finder_error(monkeypatch):
     """S-1: a priori yolda kök bulucudan kaynaklanan hata mesajı yok."""
     assert not hasattr(engine, "MSG_NO_ROOT")
     monkeypatch.setattr(engine, "brent", lambda f, a, b, **kw: 0.0)
-    assert engine.a_priori(w=0.3, alpha=0.05, power=0.8, df=1.0).n_total == 1
+    # Bu girdide aralık [50.5, 100]; kök bulucu 0 dönse de §4.5/5 n_total = ⌈50.5⌉ = 51 yapar.
+    assert engine.a_priori(w=0.3, alpha=0.05, power=0.8, df=1.0).n_total == 51
 
 
 def test_rounding_boundary():
