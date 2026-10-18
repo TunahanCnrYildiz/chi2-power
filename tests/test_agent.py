@@ -273,3 +273,31 @@ def test_gui_section_overhead_screenshots_and_fairness(tmp_path):
     assert "Ekran görüntüsü" in md and "| 7 |" in md
     assert "Hazırlık dahil toplam" in md and "1640" in md  # 1130 + 510
     assert "Adalet notu" in md and "Q07–Q10" in md
+
+
+def _main_rec(model, label_ok=True, tokens=10):
+    args = {"mode": "a-priori", "w": 0.3, "alpha": 0.05, "power": 0.95, "rows": 2, "cols": 2}
+    run = _run('{"label": "chi2-contingency", "n_total": 145, "actual_power": 0.9507851454132252}',
+               [{"name": TOOL, "arguments": args, "result": GOOD_RESULT, "is_error": False}])
+    run.update(usage={"input_tokens": tokens, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0,
+                      "output_tokens": 0}, duration_s=5.0, duration_api_s=4.0, num_turns=2, init_tools=[TOOL],
+               requested_model=model, model_usage={model: {}})
+    return {"id": "Q01", **run, "score": scoring.score_main(Q["Q01"], run)}
+
+
+def test_report_uses_latest_model_and_keeps_previous(tmp_path):
+    from gpower_clone.agent import evaluate
+
+    main = [_main_rec("claude-opus-4-8", tokens=111), _main_rec("claude-opus-5-5", tokens=222)]
+    md = evaluate.build_report(EVAL["questions"], main, [], tmp_path / "gui_results.json")
+    primary, previous = md.split("Önceki çalıştırma (claude-opus-4-8)")
+    assert "| Q01 | 222 |" in primary.replace(" 0 | 0 | 0 |", "") or "222" in primary
+    assert "111" not in primary
+    assert "111" in previous and "Etiket" in previous
+
+
+def test_evaluate_model_options():
+    from gpower_clone.agent import evaluate
+
+    a = evaluate.parse_args(["--main-model", "claude-opus-5-5", "--s1-model", "claude-haiku-5-5"])
+    assert a.main_model == "claude-opus-5-5" and a.s1_model == "claude-haiku-5-5"
