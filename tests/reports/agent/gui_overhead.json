@@ -1,0 +1,22 @@
+{
+ "source": "GUI yolu (2) oturumu, Claude Code masaüstü, Opus 5.5, bilgisayar kullanımı ile G*Power 3.1.9.7",
+ "method": "Token sayıları oturum kaydındaki (jsonl) usage alanlarından, gui_log.jsonl zaman pencerelerine göre soru başına toplandı. Pencere dışı çağrılar overhead olarak ayrıldı.",
+ "overhead": [
+  {
+   "id": "hazırlık",
+   "model_calls": 5,
+   "input_tokens": 10,
+   "cache_creation_input_tokens": 86161,
+   "cache_read_input_tokens": 406983,
+   "output_tokens": 1451
+  },
+  {
+   "id": "kapanış",
+   "model_calls": 2,
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 2274,
+   "cache_read_input_tokens": 268886,
+   "output_tokens": 1982
+  }
+ ]
+}

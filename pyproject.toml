@@ -25,6 +25,7 @@ mcp = [
 [project.scripts]
 gpower-clone = "gpower_clone.cli:main"
 gpower-clone-mcp = "gpower_clone.mcp_server:main"
+gpower-clone-agent = "gpower_clone.agent.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -40,11 +40,14 @@ def chi2_contingency_power(
     mode: Annotated[Literal["a-priori", "post-hoc"], Field(description="a-priori: solve N; post-hoc: solve power")],
     w: Annotated[float, Field(description="Effect size w; a-priori >= 1e-6, post-hoc >= 0")],
     alpha: Annotated[float, Field(description="Alpha, 1e-7..0.9999999")],
-    df: Annotated[float, Field(description="Degrees of freedom, >= 1 (fractional allowed)")],
+    df: Annotated[float | None, Field(description="Degrees of freedom, >= 1; or give rows+cols")] = None,
+    rows: Annotated[int | None, Field(description="Table rows >= 2 (df computed by the engine)")] = None,
+    cols: Annotated[int | None, Field(description="Table columns >= 2")] = None,
     power: Annotated[float | None, Field(description="a-priori only: target power, 1e-7..0.9999999, >= alpha")] = None,
     n: Annotated[int | None, Field(description="post-hoc only: total N, 1..2147483646")] = None,
 ) -> Annotated[CallToolResult, PowerResult]:
-    result = service.compute(mode, {"w": w, "alpha": alpha, "power": power, "n": n, "df": df})
+    result = service.compute(mode, {"w": w, "alpha": alpha, "power": power, "n": n, "df": df,
+                                    "rows": rows, "cols": cols})
     return CallToolResult(
         content=[TextContent(type="text", text=service.to_json(result))],
         structured_content=result,

@@ -1,0 +1,10 @@
+{"id": "Q01", "label": "chi2-contingency", "mode": "a priori", "w": 0.3, "alpha": 0.05, "power": 0.95, "n": null, "df": 1, "n_total": 145, "actual_power": "0.9507851"}
+{"id": "Q02", "label": "chi2-contingency", "mode": "a priori", "w": 0.3, "alpha": 0.05, "power": 0.80, "n": null, "df": 4, "n_total": 133, "actual_power": "0.8013043"}
+{"id": "Q03", "label": "chi2-contingency", "mode": "a priori", "w": 0.1, "alpha": 0.05, "power": 0.80, "n": null, "df": 2, "n_total": 964, "actual_power": "0.8002316"}
+{"id": "Q04", "label": "chi2-contingency", "mode": "a priori", "w": 0.5, "alpha": 0.01, "power": 0.90, "n": null, "df": 6, "n_total": 93, "actual_power": "0.9011611"}
+{"id": "Q05", "label": "chi2-contingency", "mode": "post hoc", "w": 0.3, "alpha": 0.05, "power": null, "n": null, "df": 1, "n_total": 100, "actual_power": "0.8508388"}
+{"id": "Q06", "label": "chi2-contingency", "mode": "post hoc", "w": 0.25, "alpha": 0.05, "power": null, "n": null, "df": 6, "n_total": 200, "actual_power": "0.7584630"}
+{"id": "Q07", "label": "t2-indep", "mode": "a priori", "w": null, "alpha": 0.05, "power": 0.95, "n": null, "df": null, "n_total": null, "actual_power": null}
+{"id": "Q08", "label": "t-paired", "mode": "a priori", "w": null, "alpha": null, "power": 0.80, "n": null, "df": null, "n_total": null, "actual_power": null}
+{"id": "Q09", "label": "anova-oneway", "mode": "a priori", "w": null, "alpha": 0.05, "power": 0.80, "n": null, "df": null, "n_total": null, "actual_power": null}
+{"id": "Q10", "label": "ambiguous", "mode": null, "w": null, "alpha": null, "power": null, "n": null, "df": null, "n_total": null, "actual_power": null}

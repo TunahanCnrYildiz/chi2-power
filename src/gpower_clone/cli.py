@@ -13,7 +13,8 @@ import sys
 from . import service
 
 TESTS = ("chi2-contingency",)
-FLAG = {"mode": "--mode", "w": "--w", "alpha": "--alpha", "power": "--power", "n": "--n", "df": "--df"}
+FLAG = {"mode": "--mode", "w": "--w", "alpha": "--alpha", "power": "--power", "n": "--n", "df": "--df",
+        "rows": "--rows", "cols": "--cols"}
 
 
 class CliError(Exception):
@@ -35,6 +36,8 @@ def _build_parser() -> _Parser:
     p.add_argument("--power")
     p.add_argument("--n", "--n-total", "--n_total", dest="n")
     p.add_argument("--df")
+    p.add_argument("--rows")  # df yerine tablo boyutu: df = (rows − 1)(cols − 1), motorda
+    p.add_argument("--cols")
     # Sözleşmenin genel parametreleri: kabul edilir, yok sayılır (SPEC §5.1, S-4).
     p.add_argument("--tails")
     p.add_argument("--ratio")
@@ -60,7 +63,7 @@ def _run(argv: list[str]) -> dict:
         return service.error("Missing required parameter: --test")
     if args.test not in TESTS:
         return service.error(f"Unknown test: {args.test!r} (supported: {', '.join(TESTS)})")
-    params = {name: getattr(args, name) for name in ("w", "alpha", "power", "n", "df")}
+    params = {name: getattr(args, name) for name in ("w", "alpha", "power", "n", "df", "rows", "cols")}
     return service.compute(args.mode, params, label=FLAG.__getitem__, convert=_number)
 
 

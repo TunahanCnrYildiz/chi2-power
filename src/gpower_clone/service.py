@@ -40,7 +40,8 @@ def compute(
 ) -> dict:
     """Hesabı çalıştırır; başarıda sonuç sözlüğü, girdi hatasında {"error": mesaj} döndürür.
 
-    params: w, alpha, power, n, df (eksik olan None ya da yok). Moda ait olmayan
+    params: w, alpha, power, n, df, rows, cols (eksik olan None ya da yok). df yerine
+    rows + cols verilebilir; ikisi birden verilirse tutarlı olmalıdır. Moda ait olmayan
     parametreler yok sayılır. label: hata mesajlarında parametre adı (CLI: "--w").
     convert: ham değeri sayıya çeviren isteğe bağlı fonksiyon (CLI: metin → float).
     Kontrol sırası: mod → zorunlu parametre → çevirme → motor doğrulaması (SPEC §2.1).
@@ -51,14 +52,27 @@ def compute(
         canonical = MODES.get(mode)
         if canonical is None:
             raise ServiceError(f"Unknown mode: {mode!r} (supported: a-priori, post-hoc)")
-        names = REQUIRED[canonical]
+        names = list(REQUIRED[canonical])
+        has = {k: params.get(k) is not None for k in ("df", "rows", "cols")}
+        table = has["rows"] or has["cols"]
+        if table:
+            names.remove("df")
+            names += ["rows", "cols"] + (["df"] if has["df"] else [])
         for name in names:
             if params.get(name) is None:
-                raise ServiceError(f"Missing required parameter: {label(name)}")
+                extra = f" (or {label('rows')} and {label('cols')})" if name == "df" else ""
+                raise ServiceError(f"Missing required parameter: {label(name)}{extra}")
         values = {}
         for name in names:
             raw = params[name]
             values[name] = _finite(label(name), convert(name, raw) if convert else raw)
+        if table:
+            df = engine.df_from_table(values.pop("rows"), values.pop("cols"))
+            if "df" in values and values["df"] != df:
+                raise ServiceError(
+                    f"Inconsistent parameters: {label('df')} {values['df']:g} does not match "
+                    f"({label('rows')} - 1) * ({label('cols')} - 1) = {df:g}")
+            values["df"] = df
         if canonical == "a-priori":
             r = engine.a_priori(**values)
         else:
