@@ -44,9 +44,59 @@ def test_brent_finds_root():
     assert root == pytest.approx(2 ** 0.5, abs=1e-10)
 
 
-def test_brent_same_sign_raises():
-    with pytest.raises(engine.RootNotFound):
-        engine.brent(lambda x: x * x + 1.0, 1.0, 2.0)
+def test_brent_same_sign_returns_zero():
+    """SPEC v1.2 §4.5/3: uçlarda f aynı işaretliyse hata yok, 0 döner."""
+    assert engine.brent(lambda x: x * x + 1.0, 1.0, 2.0) == 0.0
+    assert engine.brent(lambda x: -1.0, 1.0, 2.0) == 0.0
+
+
+def test_brent_maxiter_returns_last_estimate():
+    """SPEC v1.2 §4.5/3: 300 iterasyon dolarsa hata yok, son tahmin (b) döner."""
+    calls = []
+
+    def f(x):
+        calls.append(x)
+        return -1.0 if x < 1.234567890123 else 1.0
+
+    b = engine.brent(f, 1.0, 2.0, maxiter=3)
+    assert 1.0 <= b <= 2.0
+    assert b == calls[-1]  # son değerlendirilen tahmin
+
+
+def test_brent_relative_stopping_criterion():
+    """SPEC v1.2 §4.5/3: |yarım aralık| ≤ 1.1102230246251565e-16·|b| ya da f(b) = 0.
+
+    Basamak fonksiyonunda yalnızca ikiye bölme çalışır; eski mutlak 0.5·1e-10
+    toleransı ~5e-11 hatayla dururdu, yeni ölçüt makine hassasiyetine iner.
+    """
+    c = 1.234567890123
+
+    def step(x):
+        return -1.0 if x < c else 1.0
+
+    b = engine.brent(step, 1.0, 2.0)
+    assert abs(b - c) <= 4 * 2.220446049250313e-16 * c
+    assert engine.BRENT_REL_TOL == 1.1102230246251565e-16
+
+
+def test_g007_root_finder_returns_zero():
+    """S-1: güç = α → aralık [1, 2.21875], uçlar aynı işaretli → kök bulucu 0 → n_total = alt = 1."""
+    assert engine.fractional_n(w=0.3, alpha=0.05, power=0.05, df=1.0) == 0.0
+    assert engine.a_priori(w=0.3, alpha=0.05, power=0.05, df=1.0).n_total == 1
+
+
+def test_lower_bound_rule_uses_bracket_lower(monkeypatch):
+    """SPEC v1.2 §4.5/5: n_total < alt ise n_total = alt ve yeniden yuvarlanır."""
+    monkeypatch.setattr(engine, "find_bracket", lambda f: (11.875, 24.75))
+    monkeypatch.setattr(engine, "brent", lambda f, a, b, **kw: 3.2)
+    assert engine.a_priori(w=0.3, alpha=0.05, power=0.8, df=1.0).n_total == 12
+
+
+def test_a_priori_has_no_root_finder_error(monkeypatch):
+    """S-1: a priori yolda kök bulucudan kaynaklanan hata mesajı yok."""
+    assert not hasattr(engine, "MSG_NO_ROOT")
+    monkeypatch.setattr(engine, "brent", lambda f, a, b, **kw: 0.0)
+    assert engine.a_priori(w=0.3, alpha=0.05, power=0.8, df=1.0).n_total == 1
 
 
 def test_rounding_boundary():
@@ -54,6 +104,7 @@ def test_rounding_boundary():
     assert engine.round_n(104.00000000004) == 104
     assert engine.round_n(104.00000000006) == 105
     assert engine.round_n(104.0) == 104
+    assert engine.round_n(0.0) == 0  # alt sınır kuralı round_n'de değil, §4.5/5'te
 
 
 def test_round_n_huge():
