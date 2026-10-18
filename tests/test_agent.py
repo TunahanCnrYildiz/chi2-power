@@ -22,7 +22,7 @@ TOOL = "mcp__gpower-clone__chi2_contingency_power"
 def test_main_agent_command_is_locked_down():
     cmd = main_agent.build_command("soru")
     assert cmd[:2] == ["claude", "-p"]
-    assert cmd[cmd.index("--model") + 1] == "opus"
+    assert cmd[cmd.index("--model") + 1] == "claude-opus-5-5"
     assert cmd[cmd.index("--tools") + 1] == ""          # bütün yerleşik araçlar kapalı
     assert "--strict-mcp-config" in cmd
     assert cmd[cmd.index("--allowedTools") + 1] == TOOL
@@ -36,7 +36,7 @@ def test_main_agent_command_is_locked_down():
 
 def test_system1_command_has_no_tools_and_schema():
     cmd = system1.build_command("soru")
-    assert cmd[cmd.index("--model") + 1] == "haiku"
+    assert cmd[cmd.index("--model") + 1] == "claude-haiku-5-5"
     assert cmd[cmd.index("--tools") + 1] == ""
     assert "--strict-mcp-config" in cmd and "--mcp-config" not in cmd
     schema = json.loads(cmd[cmd.index("--json-schema") + 1])

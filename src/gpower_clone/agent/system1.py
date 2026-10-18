@@ -11,7 +11,7 @@ from typing import Any
 
 from . import claude_cli, prompts
 
-MODEL = "haiku"
+MODEL = "claude-haiku-5-5"  # açık kimlik; "haiku" takma adı claude-haiku-4-5'e çözülüyordu
 CONFIDENCE_THRESHOLD = 0.75
 SUPPORTED = {"chi2-contingency"}
 ASK_LABELS = {"ambiguous", "unsupported"}

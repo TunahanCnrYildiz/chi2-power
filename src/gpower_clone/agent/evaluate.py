@@ -45,20 +45,20 @@ def _read(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-def run_main(questions: list[dict], out: Path, cwd: str) -> None:
+def run_main(questions: list[dict], out: Path, cwd: str, model: str = main_agent.MODEL) -> None:
     for q in questions:
-        print(f"[ana ajan] {q['id']} …", file=sys.stderr, flush=True)
-        run = main_agent.answer(q["question_tr"], cwd=cwd)
+        print(f"[ana ajan] {q['id']} ({model}) …", file=sys.stderr, flush=True)
+        run = main_agent.answer(q["question_tr"], model=model, cwd=cwd)
         rec = {"id": q["id"], "timestamp": _now(), **run, "score": scoring.score_main(q, run)}
         _append(out / "main_runs.jsonl", rec)
         print(f"   → {rec['score']}", file=sys.stderr, flush=True)
 
 
-def run_system1(questions: list[dict], out: Path, cwd: str, repeats: int) -> None:
+def run_system1(questions: list[dict], out: Path, cwd: str, repeats: int, model: str = system1.MODEL) -> None:
     for rep in range(repeats):
         for q in questions:
             for lang in ("tr", "en"):
-                res = system1.classify(q[f"question_{lang}"], cwd=cwd)
+                res = system1.classify(q[f"question_{lang}"], model=model, cwd=cwd)
                 pred = res["prediction"]
                 route = system1.route(pred)
                 rec = {"id": q["id"], "lang": lang, "rep": rep, "timestamp": _now(), **res,
@@ -78,6 +78,29 @@ def _latest(records: list[dict]) -> dict[str, dict]:
     return by
 
 
+def _split_by_model(records: list[dict]) -> tuple[list[dict], dict[str, list[dict]]]:
+    """Ana sonuç: son kaydın istenen modeliyle yapılan çalıştırmalar; diğerleri önceki çalıştırmalardır."""
+    if not records:
+        return [], {}
+
+    def key(r):
+        return r.get("requested_model") or "?"
+    primary = key(records[-1])
+    prev: dict[str, list[dict]] = {}
+    for r in records:
+        if key(r) != primary:
+            prev.setdefault(key(r), []).append(r)
+    return [r for r in records if key(r) == primary], prev
+
+
+def _resolved(recs: list[dict]) -> str:
+    """claude çıktısına göre gerçekten kullanılan ana model (init olayı, yoksa modelUsage)."""
+    names = {r.get("model") for r in recs if r.get("model")}
+    if not names:
+        names = {m for r in recs for m in (r.get("model_usage") or {})}
+    return ", ".join(sorted(names)) or "?"
+
+
 def _pct(a: int, b: int) -> str:
     return f"{a}/{b} (%{100 * a / b:.0f})" if b else "—"
 
@@ -95,15 +118,21 @@ def _fmt_args(call: dict | None) -> str:
 
 def build_report(questions: list[dict], main_recs: list[dict], s1_recs: list[dict], gui_path: Path) -> str:
     qs = {q["id"]: q for q in questions}
+    all_main, all_s1 = main_recs, s1_recs
+    main_recs, main_prev = _split_by_model(all_main)
+    s1_recs, s1_prev = _split_by_model(all_s1)
     main = _latest(main_recs)
+    main_model = main_recs[-1].get("requested_model", main_agent.MODEL) if main_recs else main_agent.MODEL
+    s1_model = s1_recs[-1].get("requested_model", system1.MODEL) if s1_recs else system1.MODEL
     L = ["# AI ajanı değerlendirme raporu\n",
-         "Mimari: Sistem 1 (etiket, `claude -p --model haiku`, araçsız, JSON şemalı) → MCP ajanı "
-         "(`claude -p --model opus`, tek araç `chi2_contingency_power`) → gpower-clone motoru. "
+         f"Mimari: Sistem 1 (etiket, `claude -p --model {s1_model}`, araçsız, JSON şemalı) → MCP ajanı "
+         f"(`claude -p --model {main_model}`, tek araç `chi2_contingency_power`) → gpower-clone motoru. "
          "Ajan hesap yapmaz; sayılar motordan gelir.\n",
          f"- Değerlendirme seti: `tests/agent/eval_set.json` ({len(questions)} soru)",
-         f"- Kayıtlar: `tests/reports/agent/main_runs.jsonl` ({len(main_recs)} çalıştırma), "
-         f"`tests/reports/agent/system1_runs.jsonl` ({len(s1_recs)} çalıştırma)",
-         f"- Toplam `claude -p` çağrısı: **{len(main_recs) + len(s1_recs)}**"]
+         f"- Kayıtlar: `tests/reports/agent/main_runs.jsonl` ({len(all_main)} çalıştırma), "
+         f"`tests/reports/agent/system1_runs.jsonl` ({len(all_s1)} çalıştırma). Ana sonuçlar en son modelle "
+         "yapılan çalıştırmalardır; öncekiler \"Önceki çalıştırma\" alt bölümlerinde özetlenir.",
+         f"- Toplam `claude -p` çağrısı (bütün çalıştırmalar): **{len(all_main) + len(all_s1)}**"]
     if main:
         models = sorted({_models(r) for r in main.values()})
         L.append(f"- Ana ajan modeli (claude JSON çıktısından): {', '.join(models)}")
@@ -168,6 +197,21 @@ def build_report(questions: list[dict], main_recs: list[dict], s1_recs: list[dic
         L.append("")
         L.append("Ajanın erişebildiği araçlar (claude `init` olayından): "
                  + ", ".join(sorted({t for r in rows for t in (r.get('init_tools') or [])})) + "\n")
+    for req, recs in main_prev.items():
+        prev = list(_latest(recs).values())
+        sc = [r["score"] for r in prev]
+        chi = [r["score"] for r in prev if qs.get(r["id"], {}).get("expected", {}).get("label") == "chi2-contingency"]
+        ptok = sum(sum(r["usage"][k] for k in USAGE_KEYS) for r in prev)
+        bad = [r["id"] for r in prev if not r["score"]["behavior_ok"]]
+        L.append(f"### Önceki çalıştırma ({_resolved(prev)})\n")
+        L.append(f"`--model {req}` ile yapıldı; ana sonuç değildir, karşılaştırma için korunur.\n")
+        L.append(f"- Etiket: {_pct(sum(s['label_ok'] for s in sc), len(sc))}")
+        L.append(f"- Davranış: {_pct(sum(bool(s['behavior_ok']) for s in sc), len(sc))}"
+                 + (f" (✘: {', '.join(bad)})" if bad else ""))
+        L.append(f"- χ² N: {_pct(sum(bool(s['n_ok']) for s in chi), len(chi))}, güç: "
+                 f"{_pct(sum(bool(s['power_ok']) for s in chi), len(chi))}; \"ajan sayı üretti\": "
+                 f"{sum(s['agent_made_numbers'] for s in sc)}")
+        L.append(f"- Toplam token: {ptok}; toplam süre: {sum(r['duration_s'] for r in prev):.1f} s\n")
 
     # --- Sistem 1 ---
     L.append("## Sistem 1 (etiket sınıflandırıcı)\n")
@@ -222,6 +266,15 @@ def build_report(questions: list[dict], main_recs: list[dict], s1_recs: list[dic
         tok = Counter()
         for r in s1_recs:
             tok.update(r["usage"])
+        for req, recs in s1_prev.items():
+            L.append(f"### Önceki çalıştırma ({_resolved(recs)})\n")
+            L.append(f"`--model {req}`, {len(recs)} çağrı; ana sonuç değildir.\n")
+            for lang in ("tr", "en"):
+                xs = [r for r in recs if r["lang"] == lang]
+                L.append(f"- {lang.upper()}: etiket {_pct(sum(r['correct'] for r in xs), len(xs))}, "
+                         f"yönlendirme {_pct(sum(r['route_ok'] for r in xs), len(xs))}")
+            ptok = sum(sum(r["usage"][k] for k in USAGE_KEYS) for r in recs)
+            L.append(f"- Toplam token: {ptok}; toplam süre: {sum(r['duration_s'] for r in recs):.1f} s\n")
         L.append(f"Sistem 1 toplam token: girdi {tok['input_tokens']}, önbellek yazma {tok['cache_creation_input_tokens']}, "
                  f"önbellek okuma {tok['cache_read_input_tokens']}, çıktı {tok['output_tokens']}; "
                  f"toplam süre {sum(r['duration_s'] for r in s1_recs):.1f} s.\n")
@@ -230,16 +283,20 @@ def build_report(questions: list[dict], main_recs: list[dict], s1_recs: list[dic
     mcp_rows = [main[i] for i in qs if i in main]
     L.append(gui_compare.section(gui_path, mcp_rows, eval_questions=questions))
     if mcp_rows and Path(gui_path).exists():
-        main_models = sorted({m for r in mcp_rows for m in (r.get("model_usage") or {})})
-        L.append("**Model notu.** MCP yolunda `--model opus` takma adı claude JSON çıktısına göre şu modellere "
-                 f"çözüldü: {', '.join(main_models)} (küçük model, Claude Code'un arka plan çağrısıdır). GUI yolu, "
-                 "ölçümü yapan oturumun bildirdiğine göre Opus 5.5 ile koştu. Modeller farklı olduğu için token ve "
-                 "süre oranları yalnızca yaklaşık bir karşılaştırmadır. MCP süresi `claude -p` sürecinin duvar "
-                 "saatidir: süreç başlatma ve MCP sunucusunun açılışı dahildir.\n")
+        resolved = _resolved(mcp_rows)
+        all_models = sorted({m for r in mcp_rows for m in (r.get("model_usage") or {})})
+        same = "claude-opus-5-5" in resolved
+        L.append(f"**Model notu.** MCP yolu `--model {main_model}` ile çalıştı; claude çıktısındaki ana model: "
+                 f"{resolved} (modelUsage: {', '.join(all_models)}; varsa küçük model Claude Code'un arka plan "
+                 "çağrısıdır). GUI yolu, ölçümü yapan oturumun bildirdiğine göre Opus 5.5 ile koştu. "
+                 + ("İki yol aynı ana modeli kullanıyor. " if same else
+                    "Modeller farklı olduğu için token ve süre oranları yalnızca yaklaşık bir karşılaştırmadır. ")
+                 + "MCP süresi `claude -p` sürecinin duvar saatidir: süreç başlatma ve MCP sunucusunun açılışı "
+                 "dahildir.\n")
     return "\n".join(L)
 
 
-def main(argv: list[str] | None = None) -> int:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--eval", type=Path, default=EVAL)
     ap.add_argument("--out", type=Path, default=OUT)
@@ -249,16 +306,22 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--skip-main", action="store_true")
     ap.add_argument("--skip-s1", action="store_true")
     ap.add_argument("--report-only", action="store_true")
-    a = ap.parse_args(argv)
+    ap.add_argument("--main-model", default=main_agent.MODEL)
+    ap.add_argument("--s1-model", default=system1.MODEL)
+    return ap.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    a = parse_args(argv)
     questions = json.loads(a.eval.read_text(encoding="utf-8"))["questions"]
     selected = [q for q in questions if not a.only or q["id"] in a.only.split(",")]
     if not a.report_only:
         # Boş bir çalışma dizini: proje dosyaları (CLAUDE.md vb.) ajanın bağlamına girmez.
         with tempfile.TemporaryDirectory(prefix="gpower-agent-") as cwd:
             if not a.skip_main:
-                run_main(selected, a.out, cwd)
+                run_main(selected, a.out, cwd, a.main_model)
             if not a.skip_s1:
-                run_system1(selected, a.out, cwd, a.s1_repeats)
+                run_system1(selected, a.out, cwd, a.s1_repeats, a.s1_model)
     report = build_report(questions, _read(a.out / "main_runs.jsonl"), _read(a.out / "system1_runs.jsonl"),
                           a.out / "gui_results.json")
     a.report.parent.mkdir(parents=True, exist_ok=True)

@@ -11,7 +11,8 @@ from typing import Any
 
 from . import claude_cli, prompts
 
-MODEL = "opus"
+# Takma ad ("opus") CLI sürümüne göre farklı modele çözülebildiği için açık kimlik kullanılır.
+MODEL = "claude-opus-5-5"
 
 
 def mcp_config() -> dict:
