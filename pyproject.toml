@@ -18,9 +18,13 @@ test = [
 diff = [
     "statsmodels>=0.14",
 ]
+mcp = [
+    "mcp>=2.3,<3",
+]
 
 [project.scripts]
 gpower-clone = "gpower_clone.cli:main"
+gpower-clone-mcp = "gpower_clone.mcp_server:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
