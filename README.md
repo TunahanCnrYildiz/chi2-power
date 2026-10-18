@@ -2,7 +2,7 @@
 
 > **Yapılan katmanlar**
 > - ✅ **Temel katman (CLI):** tamamlandı. KAPI geçti: N tam eşleşme %93.33; doğrulanabilir vektörlerde %100.
-> - ☐ MCP sunucusu (+15): yapılmadı
+> - ✅ **MCP sunucusu (+15):** tamamlandı. Tek araç `chi2_contingency_power`; aynı motoru çağıran ince bir adaptör. 30 vektörde CLI ile birebir aynı çıktı ([aşağıda](#mcp-sunucusu-bonus-katman)).
 > - ☐ AI ajanı (+10): yapılmadı
 
 G\*Power 3.1.9.7'nin **χ² testi, olumsallık tablosu** hesabının temiz oda yöntemiyle yeniden yazımıdır.
@@ -16,7 +16,7 @@ Gereksinim: Python ≥ 3.10 (Python 3.14 ile geliştirildi ve test edildi).
 
 ```bash
 python -m venv .venv
-.venv/Scripts/python -m pip install -e ".[test,diff]"
+.venv/Scripts/python -m pip install -e ".[test,diff,mcp]"
 ```
 
 Linux ve macOS'ta `.venv/Scripts/` yerine `.venv/bin/` kullanılır. Kurulumdan sonra `gpower-clone` komutu sanal ortamda hazırdır.
@@ -75,7 +75,7 @@ gpower-clone --test chi2-contingency --mode a-priori --w 0.3 --alpha 0.05 --powe
 .venv/Scripts/python tests/statsmodels_vectors.py
 ```
 
-- `pytest` şunları çalıştırır: kabul testleri (SPEC §6'nın her vektörü ayrı test), motor ve CLI birim testleri, G\*Power kâhinine karşı KAPI testi ve 894 vektörlük statsmodels regresyonu.
+- `pytest` şunları çalıştırır: kabul testleri (SPEC §6'nın her vektörü ayrı test), motor ve CLI birim testleri, G\*Power kâhinine karşı KAPI testi, 894 vektörlük statsmodels regresyonu ve MCP testleri.
 - `differential.py` CLI'yi gerçek bir alt süreç olarak çalıştırır ve sonucu G\*Power'ın ekrandaki basamak sayısıyla karşılaştırır.
 - `statsmodels_vectors.py`, statsmodels `GofChisquarePower` ile 894 vektör üretir ve karşılaştırır.
 
@@ -83,16 +83,101 @@ gpower-clone --test chi2-contingency --mode a-priori --w 0.3 --alpha 0.05 --powe
 
 | Ölçüm | Sonuç | Kaynak |
 |---|---|---|
-| pytest | **94 geçti, 0 atlandı** | `tests/` |
+| pytest | **128 geçti, 0 atlandı** | `tests/` |
 | G\*Power arayüz vektörleri (kâhin) | **30/30** vektör tüm alanlarda tutuyor (23 hesap + 7 hata mesajı) | [`tests/reports/differential_report.md`](tests/reports/differential_report.md) |
 | **KAPI** (N tam eşleşme, eşik %90) | **%93.33 → GEÇTİ.** Doğrulanabilir vektörlerde %100. | aynı rapor |
 | statsmodels ölçek testi | 894 vektör (594 a priori, 300 post hoc), **uyuşmazlık yok** | [`tests/reports/statsmodels_report.md`](tests/reports/statsmodels_report.md) |
+| MCP ↔ CLI eşdeğerliği | 30/30 vektörde (7 hata dahil) **birebir aynı JSON**; stdio üzerinden uçtan uca test geçti | `tests/test_mcp.py` (34 test) |
 
 KAPI oranı temkinli hesaplandı. G-013'te (w = 1e-6) G\*Power, N'yi ekranda yalnızca `7.8489e+12` olarak gösteriyor. Bizim değerimiz 7 848 860 509 327 ve bu gösterimle uyumlu; ama tam tamsayı ekrandan doğrulanamadığı için bu vektörü "eşleşmedi" saydık (SPEC §5, A-5).
 
 ### Bulgu: kesirli N → tamsayı N
 
 pwr ve statsmodels N'yi kesirli verir, G\*Power ise tamsayıya çevirir. Kılavuz bunu "kesirli N her zaman yukarı yuvarlanır" diye anlatıyor (LEDGER L-030 `[DOK]`). Binary ise **kılavuzda olmayan** bir ara adım içeriyor (L-021 `[REA]`): N önce 10 ondalık basamağa yuvarlanıyor, sonra yukarı yuvarlanıyor. Bu yüzden kesirli kısmı 5·10⁻¹¹'den küçük bir N aşağı iner; örneğin 104.00000000003 → 104. 594 a priori statsmodels vektörünün hepsinde `n_total = ⌈N_statsmodels⌉`. Hiçbir kök bir tamsayıya bu kadar yakın olmadığından bu ızgarada iki kural ayrışmadı.
+
+## MCP sunucusu (bonus katman)
+
+**Mimari.** MCP sunucusu, CLI ile **aynı motoru** çağıran ince bir adaptördür. Akış:
+
+```
+CLI (cli.py)       ─┐
+                    ├─► service.compute ─► engine (hesap ve doğrulamanın tek yeri)
+MCP (mcp_server.py) ─┘
+```
+
+- `mcp_server.py` yalnızca argümanları alır ve `service.compute` fonksiyonunu çağırır; içinde hesap kodu yoktur.
+- `tests/test_mcp.py` bunu kaynak kodu düzeyinde denetler: modülde scipy, `math`, sayı dönüştürme ya da motor fonksiyonu geçmez.
+- Teknik ayrıntılar: resmi Python MCP SDK'sı (`mcp` 2.3) ve stdio taşıma.
+
+**Çalıştırma**
+
+```bash
+.venv/Scripts/python -m pip install -e ".[mcp]"
+gpower-clone-mcp
+```
+
+Sunucu `python -m gpower_clone.mcp_server` ile de başlatılabilir.
+
+**Kayıt.** Claude Code'a eklemek için:
+
+```bash
+claude mcp add gpower-clone -- "<repo>/.venv/Scripts/gpower-clone-mcp.exe"
+```
+
+Claude Desktop'a eklemek için `claude_desktop_config.json` dosyasına:
+
+```json
+{ "mcpServers": { "gpower-clone": { "command": "<repo>/.venv/Scripts/gpower-clone-mcp.exe", "args": [] } } }
+```
+
+### Araç şeması: `chi2_contingency_power`
+
+**Açıklama** (ajanın gördüğü metin, kısa tutuldu): *Chi-square contingency table power analysis (G\*Power compatible). a-priori: give power, returns required n_total. post-hoc: give n, returns actual_power. Invalid input returns isError with {"error": message}.*
+
+**Girdi** (`inputSchema`)
+
+| Alan | Tip | Zorunlu | Açıklama |
+|---|---|---|---|
+| `mode` | `"a-priori"` \| `"post-hoc"` | evet | a priori: N'yi çöz · post hoc: gücü çöz |
+| `w` | number | evet | Etki büyüklüğü w; a priori ≥ 1e-6, post hoc ≥ 0 |
+| `alpha` | number | evet | α, 1e-7 … 0.9999999 |
+| `df` | number | evet | Serbestlik derecesi ≥ 1 (kesirli olabilir) |
+| `power` | number \| null | a priori'de | Hedef güç, 1e-7 … 0.9999999, ≥ α |
+| `n` | integer \| null | post hoc'ta | Toplam N, 1 … 2147483646 |
+
+**Çıktı** (`outputSchema` / `structuredContent`). Alanlar ve sıraları CLI JSON'u ile aynıdır:
+
+| Alan | Tip | Anlamı |
+|---|---|---|
+| `n_total` | integer | Toplam N (a priori: hesaplanan; post hoc: girdi) |
+| `actual_power` | number | `n_total`'daki güç |
+| `critical` | number | Kritik χ² değeri |
+| `df` | number | Kullanılan df (tamsayı değerliyse `1`, değilse `2.5`) |
+| `ncp` | number | λ = w² · n_total |
+
+**Hata durumları**
+
+- **Geçersiz girdi:** `isError: true`. Hem `structuredContent` hem metin içeriği `{"error": "<mesaj>"}` olur; mesaj CLI ile ve G\*Power ile birebir aynıdır (SPEC §2.2).
+- **Şemaya uymayan girdi** (ör. tamsayı yerine `n = 100.5`): SDK'nın argüman doğrulaması reddeder ve `isError: true` döner (yazım oturumunun tasarım kararı, `NOTES.md`).
+
+**Örnek çağrı ve sonuç**
+
+```json
+{"mode": "a-priori", "w": 0.3, "alpha": 0.05, "power": 0.95, "df": 1}
+```
+```json
+{"n_total":145,"actual_power":0.9507851454132252,"critical":3.8414588206941285,"df":1,"ncp":13.049999999999999}
+```
+
+### CLI ↔ MCP eşdeğerlik testleri
+
+`tests/test_mcp.py` dosyasında 34 test var:
+
+| Test | Ne gösteriyor? |
+|---|---|
+| Süreç içi | SPEC'teki 30 vektörün tamamında (7 hata vektörü dahil) MCP sonucu, CLI'nin alt süreç çıktısıyla **birebir** aynı. Karşılaştırma ayrıştırılmış JSON üzerinde, toleranssız. `isError` değeri CLI çıkış koduna karşılık geliyor. |
+| Uçtan uca | Sunucu stdio üzerinden gerçek bir MCP istemcisiyle başlatılıyor. Araç listesi ve şemalar doğrulanıyor; 2 a priori, 2 post hoc ve 2 hata vektörü CLI ile karşılaştırılıyor. |
+| İnce adaptör | MCP modülünde hesap kodu olmadığı kaynak düzeyinde denetleniyor. |
 
 ## Ajanın söktüğü şeyin DOĞRU olduğunu nasıl kanıtladık?
 
@@ -174,8 +259,8 @@ Yönergedeki "eşit olmayan grup oranı" sınır değeri bu teste uygulanamaz: g
 | `AGENT_COST.md` | Ajan, token, maliyet, iterasyon ve "neyi farklı yapardım" |
 | `prompts/` | İki oturumun ilk prompt'ları |
 | `oracle/` | G\*Power vektörleri (CSV) ve ekran görüntüleri |
-| `src/gpower_clone/` | `engine.py` (hesabın tek yeri) ve `cli.py` (ince katman) |
-| `tests/` | Kabul, birim ve CLI testleri; diferansiyel test; statsmodels karşılaştırması; `tests/reports/` uyum raporları |
+| `src/gpower_clone/` | `engine.py` (hesabın tek yeri), `service.py` (CLI ve MCP'nin ortak katmanı), `cli.py` ve `mcp_server.py` (ince katmanlar) |
+| `tests/` | Kabul, birim, CLI ve MCP testleri; diferansiyel test; statsmodels karşılaştırması; `tests/reports/` uyum raporları |
 | `NOTES.md` | Yazım oturumunun tasarım kararları ve SPEC'e soruları |
 
 ## Demo

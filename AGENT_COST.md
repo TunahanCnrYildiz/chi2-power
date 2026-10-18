@@ -60,11 +60,12 @@ Her çalıştırma Ghidra analizini baştan yaptığı için ~90 saniye sürdü;
 
 ### Oturum 2 · yazım
 
-2 tur:
+3 tur:
 1. İlk tur: kabul testleri (kırmızı) → motor ve CLI (yeşil) → diferansiyel düzenek → NOTES.
 2. SPEC v1.2 düzeltmeleri: yine önce kırmızı testler, sonra yeşil kod.
+3. MCP sunucusu (bonus): kırmızı testler → ortak katman `service.py` ve `mcp_server.py` (yeşil) → NOTES.
 
-İki turda da hiçbir vektör için sayı ayarı yapılmadı.
+Hiçbir turda bir vektör için sayı ayarı yapılmadı. Token tablosu ilk iki turu kapsar.
 
 ### Ajan hataları
 
@@ -90,3 +91,4 @@ Her çalıştırma Ghidra analizini baştan yaptığı için ~90 saniye sürdü;
   - Oturum 2 temiz klasörde yalnızca SPEC ile başladı; motor, CLI ve testleri yazdı.
   - Yazım oturumunun 4 sorusu SPEC v1.2'de yanıtlandı ve koda uygulandı; kod ana repoya geçmişiyle birleştirildi.
   - Sonuç: 94/94 test geçti, kâhinde 30/30 vektör tuttu, KAPI %93.33.
+  - MCP sunucusu (bonus) yazım oturumunda eklendi ve birleştirildi: 128/128 test geçti, 30 vektörde CLI ile birebir aynı çıktı.
