@@ -47,7 +47,7 @@ Testler ve raporlar:
 
 ## Sonuçlar
 
-- pytest: **184 geçti, 1 atlandı** (`oracle/vectors.csv` henüz yok → `test_oracle_gate` atlanıyor).
+- pytest: **186 geçti, 1 atlandı** (`oracle/vectors.csv` henüz yok → `test_oracle_gate` atlanıyor).
 - SPEC vektörleri üzerinde diferansiyel rapor (`tests/reports/differential_report_spec.md`): 30/30 vektör tüm alanlarda tutuyor.
   **KAPI: 22/23 = %95.65** (G-013 doğrulanamayan sayıldığında); doğrulanabilirler üzerinde %100. Eşik %90 → GEÇTİ.
   Not: kâhin CSV'si gelince aynı betik onunla tekrar çalıştırılmalı; bu oran SPEC'teki tablodan türetilmiştir.
@@ -158,11 +158,11 @@ Sonuç biçimi:
 
 ```
 Hekimin Türkçe sorusu
-  └─ Sistem 1  (claude -p --model haiku; araç yok; --json-schema → yalnızca {"label", "confidence"})
+  └─ Sistem 1  (claude -p --model claude-haiku-5-5; araç yok; --json-schema → yalnızca {"label", "confidence"})
        ├─ chi2-contingency ve confidence ≥ 0.75 → MCP ajanı
        ├─ bilinen ama desteklenmeyen aile (t2-indep, t-paired, anova-oneway, multireg-r2) → "desteklenmiyor, araştırmacıya danışın"
        └─ ambiguous / unsupported ya da confidence < 0.75 → "araştırmacıya sorun"
-  └─ MCP ajanı (claude -p --model opus; tek araç mcp__gpower-clone__chi2_contingency_power)
+  └─ MCP ajanı (claude -p --model claude-opus-5-5; tek araç mcp__gpower-clone__chi2_contingency_power)
        └─ gpower-clone MCP sunucusu → service.compute → engine (bütün sayılar buradan)
 ```
 
@@ -181,7 +181,7 @@ Hekimin Türkçe sorusu
   - Bilgi eksikse sor.
   - Cevabın son satırı `{"label", "n_total", "actual_power"}` JSON'u olsun.
 - **Jev yerine:** Jev erişimi olmadığından Sistem 1 için ödevin izin verdiği "etiket setine kısıtlı LLM" kullanıldı:
-  `claude -p --model haiku`, araçsız. Çıktı JSON şemasıyla (`additionalProperties: false`, etiket `enum`)
+  `claude -p --model claude-haiku-5-5`, araçsız. Çıktı JSON şemasıyla (`additionalProperties: false`, etiket `enum`)
   `{"label", "confidence"}` ile sınırlı; şema dışı alan içeren bir çıktı geçersiz sayılıyor.
 
 ### Çalıştırma
@@ -239,66 +239,79 @@ dosyasına yazılır. Üçüncüsü raporu kayıtlardan yeniden üretir; GUI son
    - bilinen ama desteklenmeyen aile → "yönlendir" ya da "sor" (ikisinde de N üretilmez);
    - belirsiz soru → yalnızca "sor".
 7. **Kalibrasyon aralıkları:** 0.9–1.0, 0.75–0.9 (yönlendirme eşiği) ve < 0.75.
+8. **Açık model kimlikleri.** `opus` ve `haiku` takma adları CLI sürümüne göre farklı modellere çözülebildiği için ana ajanda ve Sistem 1'de varsayılan olarak açık kimlikler kullanılır: `claude-opus-5-5` ve `claude-haiku-5-5`. `--main-model` ve `--s1-model` ile değiştirilebilir. Raporda ana sonuç, en son çalıştırılan modelin kayıtlarıdır; önceki modellerin kayıtları silinmez ve "Önceki çalıştırma" alt bölümlerinde özetlenir.
 
 ### Sonuçlar
 
-Ölçüm 2026-10-18, abonelik girişiyle (Pro). Toplam **70 `claude -p` çağrısı** yapıldı: 10 ana ajan, 60 Sistem 1.
-Ayrıca 3 hata ayıklama çağrısı yapıldı; bunlar değerlendirmeye dahil değil. Ayrıntı:
-[tests/reports/agent_report.md](tests/reports/agent_report.md); kayıtlar `tests/reports/agent/main_runs.jsonl` ve
-`system1_runs.jsonl` dosyalarında (araç adı, argümanlar, sonuç, son cevap, süre, token).
+Ölçüm 2026-10-18, abonelik girişiyle (Pro). İki tur yapıldı; ikisinin kaydı da
+`tests/reports/agent/main_runs.jsonl` ve `system1_runs.jsonl` dosyalarında duruyor. Bu kayıtlarda araç adı,
+argümanlar, sonuç, son cevap, süre ve token var. Ayrıntılı rapor: [tests/reports/agent_report.md](tests/reports/agent_report.md).
 
-**Ana ajan (MCP yolu).** Model `opus` takma adıyla çağrıldı; claude çıktısında `claude-opus-4-8` göründü, yanında
-Claude Code'un arka plan çağrısı için `claude-haiku-4-5` var.
+1. **Tur 1 (önceki):** `--model opus` ve `--model haiku` takma adlarıyla çalıştırıldı. claude CLI 2.1.211 bu adları
+   `claude-opus-4-8` ve `claude-haiku-4-5` modellerine çözdü. GUI yolu ise Opus 5.5 ile koşmuştu, yani karşılaştırma
+   adil değildi.
+2. **Tur 2 (ana sonuç):** Modeller açık kimlikle verildi: `--model claude-opus-5-5`, `--model claude-haiku-5-5`.
+   CLI 2.1.211 Opus 5.5'i reddetti ("version 2.1.280 or newer is required"). Kullanıcının izniyle `claude update`
+   çalıştırıldı ve CLI 2.1.302'ye güncellendi. Bu sürümde iki kimlik de kabul ediliyor; JSON çıktısındaki model
+   alanında `claude-opus-5-5` ve `claude-haiku-5-5` görünüyor.
 
-| Ölçüt | Sonuç |
-|---|---|
-| Doğru seçim oranı (etiket, 10 soru) | **10/10** |
-| Doğru davranış (etiket + parametre + N/güç ya da sayısız yönlendirme) | **9/10** |
-| χ² sorularında parametre / N / güç (7 ondalık) | 6/6 / 6/6 / **5/6** |
-| "Ajan sayı üretti" bayrağı | **0** |
-| Ajanın gördüğü araçlar (`init`) | yalnızca `mcp__gpower-clone__chi2_contingency_power` |
-| Token (10 soru, tüm modeller) | 47 126 (girdi 6 075, önb. yazma 7 338, önb. okuma 30 348, çıktı 3 365) |
-| Süre (duvar saati) | 88.6 s (soru başına 6.7–16.4 s) |
+Toplam çağrı sayısı **140**: her turda 10 ana ajan ve 60 Sistem 1 çağrısı. Bunlara değerlendirmeye girmeyen
+6 doğrulama ve hata ayıklama çağrısı (biri CLI tarafından reddedildi) ekleniyor. Prompt ve puanlama iki turda aynı.
 
-- **Q03 başarısızlığı.** Ajan aracı doğru argümanlarla çağırdı ve N = 964 doğru. Ancak JSON satırında
-  `actual_power` alanını boş (`null`) bıraktı ve metne "≈ 0,80" yazdı. Bu, yuvarlamama kuralının ihlali.
-  Puanlama bunu güç hatası saydı; sonuç ayarlanmadı.
-- **Diğer sorular.** Q07–Q09'da aile doğru tanındı, araç çağrılmadı, N üretilmedi ve araştırmacıya yönlendirildi.
-  Q10'da eksik bilgiler soruldu. Bilgi amaçlı metin kontrolü Q10'da yalnızca madde numaralarını ve önerilen yaygın
-  değerleri (α = 0,05, güç = 0,80) gösterdi; bunlar hesap sonucu değil.
+**Ana ajan (MCP yolu)**
 
-**Sistem 1** (`claude-haiku-4-5`, 10 soru × TR/EN × 3 tekrar = 60 çağrı, geçersiz çıktı 0):
-
-| | TR | EN |
+| Ölçüt | Tur 2: claude-opus-5-5 | Tur 1: claude-opus-4-8 |
 |---|---|---|
-| Etiket doğruluğu | 29/30 (%97) | 28/30 (%93) |
-| Yönlendirme doğruluğu | 30/30 | 30/30 |
-| Ortalama güven | 0.96 | 0.97 |
-| 0.9–1.0 güven aralığında gerçek doğruluk | 29/29 (%100) | 28/30 (%93) |
+| Doğru seçim oranı (etiket, 10 soru) | **10/10** | 10/10 |
+| Doğru davranış | **10/10** | 9/10 (Q03) |
+| χ² sorularında parametre / N / güç (7 ondalık) | 6/6 / 6/6 / 6/6 | 6/6 / 6/6 / 5/6 |
+| "Ajan sayı üretti" bayrağı | 0 | 0 |
+| Token (10 soru, tüm modeller) | 50 811 | 47 126 |
+| Süre (duvar saati) | 124.0 s | 88.6 s |
 
-- **Hatalar.** Hataların hepsi Q10'da (belirsiz soru): `unsupported` etiketi verildi (TR 1 kez, güven 0.75;
-  EN 2 kez, güven 0.95). İki etiket de "araştırmacıya sor" yoluna gittiği için yönlendirme yine doğru.
-- **Kalibrasyon.** İngilizcede "%95 güven"li iki yanlış var, yani İngilizcede güven biraz fazla. Türkçede tek yanlış
-  0.75 güvenle geldi.
-- **İki dilin karşılaştırması.** Türkçe ile İngilizce arasında anlamlı bir fark yok. Örnek az (soru başına 3 tekrar).
+- **Araç erişimi.** İki turda da ajanın gördüğü tek araç `mcp__gpower-clone__chi2_contingency_power` oldu
+  (`init` olayından).
+- **Q03.** Tur 1'de Opus 4.8 JSON satırında `actual_power` alanını boş (`null`) bırakmıştı. Tur 2'de Opus 5.5 bu
+  alanı araç sonucunun bütün basamaklarıyla doldurdu. Puanlama değiştirilmedi; iki sonuç da olduğu gibi raporlandı.
+- **Q06 süresi.** Tur 2'de Q06 31.5 s sürdü; API süresi de 28.7 s. Bu yüzden yavaşlık süreç başlatmadan değil,
+  model tarafından.
+- **Bilgi amaçlı metin kontrolü.** Kontrol bazı sayıları gösteriyor: Q05'te "%80" ve Q08'de "d = 0,5" gibi
+  açıklamalar; Q10'da madde numaraları ve yaygın α/güç önerileri. Bunlar hesap sonucu değil; JSON satırlarında
+  araç dışı sayı yok.
 
-**MCP ↔ GUI** (GUI ölçümleri `gui_results.json` ve `gui_overhead.json` dosyalarından okundu; değiştirilmedi):
+**Sistem 1** (10 soru × TR/EN × 3 tekrar = 60 çağrı; geçersiz çıktı 0)
 
-| | MCP | GUI |
+| | Tur 2: claude-haiku-5-5 TR | EN | Tur 1: claude-haiku-4-5 TR | EN |
+|---|---|---|---|---|
+| Etiket doğruluğu | **30/30** | **30/30** | 29/30 | 28/30 |
+| Yönlendirme doğruluğu | 30/30 | 30/30 | 30/30 | 30/30 |
+| Ortalama güven | 0.93 | 0.94 | 0.96 | 0.97 |
+
+- **Kalibrasyon, Tur 2.** 0.9–1.0 aralığındaki 56 tahminin hepsi doğru; 0.75–0.9 aralığındaki 4 tahminin de
+  hepsi doğru. Bu 4 tahminin hepsi belirsiz soru Q10'a ait, güven 0.85–0.90. Yani model belirsiz soruda güvenini
+  makul biçimde düşürüyor.
+- **Kalibrasyon, Tur 1.** Haiku 4.5, Q10'u İngilizcede iki kez 0.95 güvenle `unsupported` olarak etiketlemişti;
+  İngilizcede güven biraz fazlaydı.
+- **İki dil.** Tur 2'de Türkçe ile İngilizce arasında doğrulukta fark yok.
+
+**MCP ↔ GUI** (ana sonuç Tur 2; GUI ölçümleri `gui_results.json` ve `gui_overhead.json` dosyalarından okundu,
+değiştirilmedi; iki yolda da ana model Opus 5.5)
+
+| | MCP (claude-opus-5-5) | GUI (Opus 5.5) |
 |---|---|---|
-| Token (yalnızca soru pencereleri) | 47 126 | 2 978 621 (63×) |
-| Token (hazırlık ve kapanış dahil) | 47 126 | 3 746 372 (80×) |
-| Süre | 88.6 s | 129.8 s |
-| Doğruluk | 9/10 | 10/10 |
+| Token (yalnızca soru pencereleri) | 50 811 | 2 978 621 (59×) |
+| Token (hazırlık ve kapanış dahil) | 50 811 | 3 746 372 (74×) |
+| Süre | 124.0 s | 129.8 s |
+| Doğruluk | 10/10 | 10/10 |
 | Ekran görüntüsü | 0 | 16 |
 
-- **Adalet ve model notları** (raporda da var):
+- **Adalet notu** (raporda da var):
   - MCP yolunda her soru ayrı bir süreçte, kendi başlangıç maliyetiyle çözüldü.
-  - GUI yolu tek uzun bir konuşmaydı ve birikmiş geçmişi yeniden okudu.
+  - GUI yolu tek uzun bir konuşmaydı ve birikmiş geçmişi ile ekran görüntülerini yeniden okudu.
   - GUI, Q07–Q10'da kullanılmadı.
-  - İki yolda modeller farklı: MCP'de `claude-opus-4-8`, GUI'de Opus 5.5.
-- **Q03'teki doğruluk farkı.** Fark motorda değil: araç doğru gücü döndürdü. Fark, ajanın bu değeri JSON satırına
-  aktarmamasından geliyor.
+- **Süre karşılaştırması.** İki yolun süresi yakın, çünkü MCP süresine süreç başlatma ve MCP sunucusunun açılışı
+  dahil.
+- **Token farkı.** Fark büyük ölçüde GUI'nin önbellekten yeniden okuduğu bağlamdan geliyor.
 
 ## SPEC v1.2 ile değişenler
 
