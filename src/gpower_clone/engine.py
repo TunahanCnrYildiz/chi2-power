@@ -33,6 +33,8 @@ MSG_W_A_PRIORI = "Effect size w must be greater 1e-06."
 MSG_W_POST_HOC = "Effect size w must be non-negative."
 # Tasarım kararları (SPEC'te mesaj yok):
 MSG_N_INTEGER = "Total sample size must be an integer."  # A-3
+MSG_ROWS = "Number of rows must be an integer greater or equal two."
+MSG_COLS = "Number of columns must be an integer greater or equal two."
 MSG_BRACKET_OVERFLOW = "Unable to bracket the total sample size (upper bound overflow)."
 
 
@@ -171,6 +173,16 @@ def _check_df(df: float) -> None:
 def _check_alpha(alpha: float) -> None:
     if not ALPHA_MIN <= alpha <= ALPHA_MAX:
         raise InputError(MSG_ALPHA_RANGE)
+
+
+# ---------- Tablo boyutu (ajan katmanı için; SPEC dışı) ----------
+
+def df_from_table(rows: float, cols: float) -> float:
+    """r × c olumsallık tablosunun serbestlik derecesi: (r − 1)(c − 1)."""
+    for value, message in ((rows, MSG_ROWS), (cols, MSG_COLS)):
+        if not (value >= 2 and value == math.floor(value)):
+            raise InputError(message)
+    return float((int(rows) - 1) * (int(cols) - 1))
 
 
 # ---------- Modlar ----------
