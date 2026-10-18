@@ -254,3 +254,22 @@ def test_untraced_numbers():
             '{"label": "chi2-contingency", "n_total": 145, "actual_power": 0.9507851454132252}')
     q = "2×2 tablo, w = 0,3, α = 0,05 ve %95 güç"
     assert scoring.untraced_numbers(text, q, calls) == ["36"]
+
+
+def test_gui_section_overhead_screenshots_and_fairness(tmp_path):
+    gui = [{"id": "Q01", "label": "chi2-contingency", "n_total": 145, "actual_power": "0.9507851",
+            "duration_s": 56.5, "input_tokens": 20, "cache_creation_input_tokens": 100,
+            "cache_read_input_tokens": 1000, "output_tokens": 10, "model_calls": 10, "screenshots": 7}]
+    (tmp_path / "gui_results.json").write_text(json.dumps(gui), encoding="utf-8")
+    (tmp_path / "gui_overhead.json").write_text(json.dumps({"overhead": [
+        {"id": "hazırlık", "model_calls": 5, "input_tokens": 10, "cache_creation_input_tokens": 0,
+         "cache_read_input_tokens": 400, "output_tokens": 0},
+        {"id": "kapanış", "model_calls": 2, "input_tokens": 0, "cache_creation_input_tokens": 0,
+         "cache_read_input_tokens": 100, "output_tokens": 0}]}), encoding="utf-8")
+    mcp = [{"id": "Q01", "duration_s": 10.0, "usage": {"input_tokens": 10, "cache_creation_input_tokens": 100,
+            "cache_read_input_tokens": 1000, "output_tokens": 50},
+            "score": {"label_ok": True, "n_ok": True, "power_ok": True, "behavior_ok": True}}]
+    md = gui_compare.section(tmp_path / "gui_results.json", mcp, eval_questions=EVAL["questions"])
+    assert "Ekran görüntüsü" in md and "| 7 |" in md
+    assert "Hazırlık dahil toplam" in md and "1640" in md  # 1130 + 510
+    assert "Adalet notu" in md and "Q07–Q10" in md
