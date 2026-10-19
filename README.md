@@ -87,7 +87,7 @@ gpower-clone --test chi2-contingency --mode a-priori --w 0.3 --alpha 0.05 --powe
 | G\*Power arayüz vektörleri (kâhin) | **30/30** vektör tüm alanlarda tutuyor (23 hesap + 7 hata mesajı) | [`tests/reports/differential_report.md`](tests/reports/differential_report.md) |
 | **KAPI** (N tam eşleşme, eşik %90) | **%93.33 → GEÇTİ.** Doğrulanabilir vektörlerde %100. | aynı rapor |
 | statsmodels ölçek testi | 894 vektör (594 a priori, 300 post hoc), **uyuşmazlık yok** | [`tests/reports/statsmodels_report.md`](tests/reports/statsmodels_report.md) |
-| MCP ↔ CLI eşdeğerliği | 30/30 vektörde (7 hata dahil) **birebir aynı JSON**; stdio üzerinden uçtan uca test geçti | `tests/test_mcp.py` (34 test) |
+| MCP ↔ CLI eşdeğerliği | 30/30 vektörde (7 hata dahil) **birebir aynı JSON**; stdio üzerinden uçtan uca test geçti | `tests/test_mcp.py` (40 test) |
 
 KAPI oranı temkinli hesaplandı. G-013'te (w = 1e-6) G\*Power, N'yi ekranda yalnızca `7.8489e+12` olarak gösteriyor. Bizim değerimiz 7 848 860 509 327 ve bu gösterimle uyumlu; ama tam tamsayı ekrandan doğrulanamadığı için bu vektörü "eşleşmedi" saydık (SPEC §5, A-5).
 
@@ -171,7 +171,7 @@ Claude Desktop'a eklemek için `claude_desktop_config.json` dosyasına:
 
 ### CLI ↔ MCP eşdeğerlik testleri
 
-`tests/test_mcp.py` dosyasında 34 test var:
+`tests/test_mcp.py` dosyasında 40 test var:
 
 | Test | Ne gösteriyor? |
 |---|---|
@@ -209,8 +209,8 @@ Hekimin Türkçe sorusu
 | Soru grubu | Adet | Beklenen değerlerin kaynağı |
 |---|---|---|
 | χ² olumsallık soruları (4 a priori, 2 post hoc) | 6 | G\*Power oracle vektörleri: G-001, G-002, G-003, G-004, G-005, G-030 |
-| Desteklenmeyen aileler (t2-indep, t-paired, anova-oneway) | 3 | Beklenen davranış: aileyi tanı, N üretme, araştırmacıya yönlendir |
-| Belirsiz soru | 1 | Beklenen davranış: tahmin yapma, eksik bilgiyi sor |
+| Desteklenmeyen aileler (t2-indep, t-paired, anova-oneway) | 3 | Beklenen davranış: aileyi tanı, N üretme, araştırmacıya yönlendir. Belge amaçlı G\*Power referans değerleri ekran görüntüleriyle [`tests/agent/reference/`](tests/agent/reference/) altında: N = 210, 34, 159 (Q07'deki değer yönergedeki örnek çıktıyla aynı) |
+| Belirsiz soru | 1 | Beklenen davranış: tahmin yapma, eksik bilgiyi sor (bilgi eksik olduğu için N belirlenemez) |
 
 ### Sonuçlar (Opus 5.5 / Haiku 5.5)
 
@@ -286,6 +286,16 @@ Tek bir kanıta güvenmedik. Her iddia, birbirinden bağımsız katmanlardan ge�
 | SPEC geri bildirimi | Yazım oturumunun 4 sorusu SPEC v1.2 §5.1'de yanıtlandı ve koda uygulandı |
 | Maliyet | [`AGENT_COST.md`](AGENT_COST.md) |
 
+**Hangi dosyayı hangi oturum üretti?** Temiz oda kuralının işlediğini göstermek için:
+
+| Oturum | Ürettikleri | Gördükleri |
+|---|---|---|
+| **Oturum 1 · inceleme** (REA + Ghidra) | `LEDGER.md` ve `SPEC.md`. Ayrıca kod olmayan belgeler ve veriler: `README.md`, `HALLUCINATIONS.md`, `AGENT_COST.md`, `oracle/vectors.csv` (G\*Power arayüz değerleri), `tests/agent/eval_set.json` (beklenen değerler G\*Power arayüzünden), GUI ölçüm dosyaları | Binary, REA/Ghidra çıktıları, G\*Power arayüzü |
+| **Oturum 2 · yazım** (ayrı klasör, ayrı git deposu) | Bütün kod: `src/` ve `tests/` altındaki `.py` dosyaları, `pyproject.toml`, raporlar ve `NOTES.md` (NOTES.md'deki iki durum satırını sonradan inceleme oturumu güncelledi) | **Yalnızca** `SPEC.md`, sonra G\*Power arayüz değerleri (değerlendirme seti, GUI ölçümleri). Ghidra/REA çıktısı, LEDGER ya da inceleme geçmişi görmedi. |
+| GUI yolu (ayrı oturum) | G\*Power'ı ekran görüntüsüyle kullanarak ölçüm (`tests/reports/agent/gui/`) | Yalnızca soru metinleri |
+
+İnceleme oturumu hiçbir kod dosyası yazmadı. Kodun her satırı yazım oturumunun commit'lerinden geliyor (git geçmişinde "Oturum 2 … birleştirildi" commit'leri).
+
 ## Hedef binary
 
 | Alan | Değer |
@@ -311,6 +321,7 @@ Ajana "REA araçları ve Ghidra sağlayıcısı bu oturumda kullanılabilir mi?"
 | Ghidra | 12.1.4 (`ghidra_12.1.4_PUBLIC_20260921.zip`, SHA-256 `ddac49f9…87d2d4db`) |
 | JDK | Eclipse Temurin 21.0.12.1 (64-bit) |
 | Ajan | Claude Code (Opus 5.5) |
+| `gpower-clone` | 0.1.0 (`pyproject.toml`) |
 | Yeniden yazım | Python 3.14, scipy (dağılım fonksiyonları), statsmodels (yalnızca test) |
 
 > **Windows + Claude masaüstü uygulaması notları**

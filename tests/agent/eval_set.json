@@ -1,73 +1,209 @@
 {
-  "description": "AI ajanı değerlendirme seti (10 soru). Sorular kurgusaldır, gerçek hasta verisi içermez. χ² sorularının beklenen değerleri G*Power arayüzünden alınmış oracle vektörleridir (oracle_id, ekran görüntüsü oracle/screenshots/). Diğer ailelerde aracın desteği yoktur; doğru davranış, aileyi doğru tanıyıp hesap yapmadan araştırmacıya yönlendirmektir.",
-  "labels": ["t2-indep", "t-paired", "anova-oneway", "chi2-contingency", "multireg-r2", "ambiguous", "unsupported"],
-  "effect_size_conventions_w": {"küçük": 0.1, "orta": 0.3, "büyük": 0.5},
+  "description": "AI ajanı değerlendirme seti (10 soru). Sorular kurgusaldır, gerçek hasta verisi içermez. χ² sorularının beklenen değerleri G*Power arayüzünden alınmış oracle vektörleridir (oracle_id, ekran görüntüsü oracle/screenshots/). Diğer ailelerde aracın desteği yoktur; doğru davranış, aileyi doğru tanıyıp hesap yapmadan araştırmacıya yönlendirmektir. Kapsam dışı sorular (Q07–Q09) için G*Power referans değerleri tests/agent/reference/ altında ekran görüntüleriyle verilmiştir.",
+  "labels": [
+    "t2-indep",
+    "t-paired",
+    "anova-oneway",
+    "chi2-contingency",
+    "multireg-r2",
+    "ambiguous",
+    "unsupported"
+  ],
+  "effect_size_conventions_w": {
+    "küçük": 0.1,
+    "orta": 0.3,
+    "büyük": 0.5
+  },
   "questions": [
     {
       "id": "Q01",
       "question_tr": "İki farklı ağrı kesiciyi karşılaştıracağız; her hastada sonuç 'yanıt var' ya da 'yanıt yok' olarak kaydedilecek, yani 2×2 bir tablomuz olacak. Orta düzeyde bir etki (w = 0,3) bekliyoruz. α = 0,05 ve %95 güçle kaç hasta almamız gerekir?",
       "question_en": "We will compare two painkillers; each patient's outcome is recorded as 'response' or 'no response', giving a 2×2 table. We expect a medium effect (w = 0.3). With α = 0.05 and 95% power, how many patients do we need?",
-      "expected": {"label": "chi2-contingency", "mode": "a-priori", "w": 0.3, "alpha": 0.05, "power": 0.95, "rows": 2, "cols": 2, "df": 1, "n_total": 145, "actual_power": "0.9507851"},
+      "expected": {
+        "label": "chi2-contingency",
+        "mode": "a-priori",
+        "w": 0.3,
+        "alpha": 0.05,
+        "power": 0.95,
+        "rows": 2,
+        "cols": 2,
+        "df": 1,
+        "n_total": 145,
+        "actual_power": "0.9507851"
+      },
       "oracle_id": "G-001"
     },
     {
       "id": "Q02",
       "question_tr": "Üç tedavi kolunda hastaların yanıtını 'tam', 'kısmi' ve 'yok' olarak sınıflandıracağız (3×3 tablo). Orta düzeyde bir etki bekliyoruz. α = 0,05 ve %80 güç için toplam örneklem ne olmalı?",
       "question_en": "Across three treatment arms we will classify patient response as 'complete', 'partial' or 'none' (a 3×3 table). We expect a medium effect. What total sample size is needed for α = 0.05 and 80% power?",
-      "expected": {"label": "chi2-contingency", "mode": "a-priori", "w": 0.3, "alpha": 0.05, "power": 0.80, "rows": 3, "cols": 3, "df": 4, "n_total": 133, "actual_power": "0.8013043"},
+      "expected": {
+        "label": "chi2-contingency",
+        "mode": "a-priori",
+        "w": 0.3,
+        "alpha": 0.05,
+        "power": 0.8,
+        "rows": 3,
+        "cols": 3,
+        "df": 4,
+        "n_total": 133,
+        "actual_power": "0.8013043"
+      },
       "oracle_id": "G-002"
     },
     {
       "id": "Q03",
       "question_tr": "İki aşı türünde yan etki derecesini 'yok', 'hafif', 'belirgin' olarak karşılaştırmak istiyoruz (2×3 tablo). Farkın küçük olacağını düşünüyoruz (w = 0,1). α = 0,05, güç %80 olsun. Kaç kişiye ihtiyacımız var?",
       "question_en": "We want to compare side-effect severity ('none', 'mild', 'marked') between two vaccine types (a 2×3 table). We think the difference will be small (w = 0.1). Use α = 0.05 and 80% power. How many people do we need?",
-      "expected": {"label": "chi2-contingency", "mode": "a-priori", "w": 0.1, "alpha": 0.05, "power": 0.80, "rows": 2, "cols": 3, "df": 2, "n_total": 964, "actual_power": "0.8002316"},
+      "expected": {
+        "label": "chi2-contingency",
+        "mode": "a-priori",
+        "w": 0.1,
+        "alpha": 0.05,
+        "power": 0.8,
+        "rows": 2,
+        "cols": 3,
+        "df": 2,
+        "n_total": 964,
+        "actual_power": "0.8002316"
+      },
       "oracle_id": "G-003"
     },
     {
       "id": "Q04",
       "question_tr": "Dört hastanede taburculuk durumunu 'iyileşti', 'sevk edildi', 'kaybedildi' diye kaydedeceğiz (4×3 tablo). Büyük bir etki bekliyoruz. Yanlış pozitif riskini %1 ile sınırlamak ve %90 güce ulaşmak istiyoruz. Toplam kaç hasta?",
       "question_en": "In four hospitals we will record discharge status as 'recovered', 'referred' or 'died' (a 4×3 table). We expect a large effect. We want to limit the false-positive risk to 1% and reach 90% power. How many patients in total?",
-      "expected": {"label": "chi2-contingency", "mode": "a-priori", "w": 0.5, "alpha": 0.01, "power": 0.90, "rows": 4, "cols": 3, "df": 6, "n_total": 93, "actual_power": "0.9011611"},
+      "expected": {
+        "label": "chi2-contingency",
+        "mode": "a-priori",
+        "w": 0.5,
+        "alpha": 0.01,
+        "power": 0.9,
+        "rows": 4,
+        "cols": 3,
+        "df": 6,
+        "n_total": 93,
+        "actual_power": "0.9011611"
+      },
       "oracle_id": "G-004"
     },
     {
       "id": "Q05",
       "question_tr": "100 hastalık çalışmamızı bitirdik: iki tedavi, sonuç 'iyileşti / iyileşmedi' (2×2). Orta düzeyde bir etki (w = 0,3) varsayarsak, α = 0,05 ile çalışmamızın gücü neydi?",
       "question_en": "We finished our 100-patient study: two treatments, outcome 'recovered / not recovered' (2×2). Assuming a medium effect (w = 0.3), what was the power of our study at α = 0.05?",
-      "expected": {"label": "chi2-contingency", "mode": "post-hoc", "w": 0.3, "alpha": 0.05, "n": 100, "rows": 2, "cols": 2, "df": 1, "n_total": 100, "actual_power": "0.8508388"},
+      "expected": {
+        "label": "chi2-contingency",
+        "mode": "post-hoc",
+        "w": 0.3,
+        "alpha": 0.05,
+        "n": 100,
+        "rows": 2,
+        "cols": 2,
+        "df": 1,
+        "n_total": 100,
+        "actual_power": "0.8508388"
+      },
       "oracle_id": "G-005"
     },
     {
       "id": "Q06",
       "question_tr": "Dört yaş grubunda tedaviye uyumu 'iyi', 'orta', 'zayıf' olarak sınıfladığımız 200 kişilik bir çalışmamız var (4×3 tablo). Etkiyi w = 0,25 kabul edersek, α = 0,05 için gücümüz ne kadar?",
       "question_en": "We have a 200-person study in which treatment adherence was classified as 'good', 'moderate' or 'poor' across four age groups (a 4×3 table). If we take the effect as w = 0.25, what is our power at α = 0.05?",
-      "expected": {"label": "chi2-contingency", "mode": "post-hoc", "w": 0.25, "alpha": 0.05, "n": 200, "rows": 4, "cols": 3, "df": 6, "n_total": 200, "actual_power": "0.7584630"},
+      "expected": {
+        "label": "chi2-contingency",
+        "mode": "post-hoc",
+        "w": 0.25,
+        "alpha": 0.05,
+        "n": 200,
+        "rows": 4,
+        "cols": 3,
+        "df": 6,
+        "n_total": 200,
+        "actual_power": "0.7584630"
+      },
       "oracle_id": "G-030"
     },
     {
       "id": "Q07",
       "question_tr": "Yeni bir ilaçla plasebo arasında sistolik kan basıncı ortalamalarını karşılaştıracağız; iki bağımsız grup olacak. Orta etki (d = 0,5), α = 0,05, çift yönlü test ve %95 güç istiyoruz. Kaç hasta gerekir?",
       "question_en": "We will compare mean systolic blood pressure between a new drug and placebo in two independent groups. We want a medium effect (d = 0.5), α = 0.05, a two-sided test and 95% power. How many patients are needed?",
-      "expected": {"label": "t2-indep", "supported_by_tool": false, "behavior": "Aileyi tanıyıp bu aracın bu testi desteklemediğini söylemeli; N üretmemeli, araştırmacıya yönlendirmeli.", "reference_n_total": 210, "reference_source": "yönerge örnek çıktısı (t2-indep, d = 0.5, α = 0.05, güç 0.95, iki yönlü, oran 1)"}
+      "expected": {
+        "label": "t2-indep",
+        "supported_by_tool": false,
+        "behavior": "Aileyi tanıyıp bu aracın bu testi desteklemediğini söylemeli; N üretmemeli, araştırmacıya yönlendirmeli.",
+        "reference_n_total": 210,
+        "reference_source": "G*Power 3.1.9.7 arayüzü, ekran görüntüsü tests/agent/reference/ref_Q07.png",
+        "parameters": {
+          "test": "iki bağımsız grup t testi",
+          "tails": 2,
+          "d": 0.5,
+          "alpha": 0.05,
+          "power": 0.95,
+          "allocation_ratio": 1
+        },
+        "reference_actual_power": "0.9501287",
+        "reference_note": "Yönergedeki örnek çıktıyla birebir aynı (n1 = n2 = 105, N = 210).",
+        "n_total": null,
+        "n_total_note": "Ajandan beklenen N yok: bu test aracın kapsamı dışında, doğru davranış N üretmeden yönlendirmek. reference_n_total yalnızca belge amaçlıdır."
+      }
     },
     {
       "id": "Q08",
       "question_tr": "Aynı hastaların tansiyonunu tedaviden önce ve sonra ölçeceğiz. Önce-sonra farkı için orta düzey bir etki beklersek %80 güçle kaç hasta yeterli olur?",
       "question_en": "We will measure the same patients' blood pressure before and after treatment. If we expect a medium effect for the before–after difference, how many patients are enough for 80% power?",
-      "expected": {"label": "t-paired", "supported_by_tool": false, "behavior": "Aileyi tanıyıp desteklenmediğini söylemeli; N üretmemeli, araştırmacıya yönlendirmeli."}
+      "expected": {
+        "label": "t-paired",
+        "supported_by_tool": false,
+        "behavior": "Aileyi tanıyıp desteklenmediğini söylemeli; N üretmemeli, araştırmacıya yönlendirmeli.",
+        "parameters": {
+          "test": "eşleştirilmiş t testi",
+          "tails": 2,
+          "dz": 0.5,
+          "alpha": 0.05,
+          "power": 0.8,
+          "note": "Soruda α verilmediği için 0,05 varsayıldı; \"orta etki\" Cohen dz = 0,5."
+        },
+        "reference_n_total": 34,
+        "reference_actual_power": "0.8077775",
+        "reference_source": "G*Power 3.1.9.7 arayüzü, ekran görüntüsü tests/agent/reference/ref_Q08.png",
+        "n_total": null,
+        "n_total_note": "Ajandan beklenen N yok: bu test aracın kapsamı dışında, doğru davranış N üretmeden yönlendirmek. reference_n_total yalnızca belge amaçlıdır."
+      }
     },
     {
       "id": "Q09",
       "question_tr": "Üç farklı diyet programında altı ay sonundaki ortalama kilo kaybını karşılaştıracağız. Orta düzey bir etki (f = 0,25), α = 0,05 ve %80 güç için kaç katılımcı gerekir?",
       "question_en": "We will compare mean weight loss after six months across three different diet programmes. How many participants are needed for a medium effect (f = 0.25), α = 0.05 and 80% power?",
-      "expected": {"label": "anova-oneway", "supported_by_tool": false, "behavior": "Aileyi tanıyıp desteklenmediğini söylemeli; N üretmemeli, araştırmacıya yönlendirmeli."}
+      "expected": {
+        "label": "anova-oneway",
+        "supported_by_tool": false,
+        "behavior": "Aileyi tanıyıp desteklenmediğini söylemeli; N üretmemeli, araştırmacıya yönlendirmeli.",
+        "parameters": {
+          "test": "tek yönlü ANOVA",
+          "f": 0.25,
+          "alpha": 0.05,
+          "power": 0.8,
+          "groups": 3
+        },
+        "reference_n_total": 159,
+        "reference_actual_power": "0.8048873",
+        "reference_source": "G*Power 3.1.9.7 arayüzü, ekran görüntüsü tests/agent/reference/ref_Q09.png",
+        "n_total": null,
+        "n_total_note": "Ajandan beklenen N yok: bu test aracın kapsamı dışında, doğru davranış N üretmeden yönlendirmek. reference_n_total yalnızca belge amaçlıdır."
+      }
     },
     {
       "id": "Q10",
       "question_tr": "Yeni tedavimizin işe yarayıp yaramadığını görmek istiyoruz. Kaç hastaya ihtiyacımız var?",
       "question_en": "We want to see whether our new treatment works. How many patients do we need?",
-      "expected": {"label": "ambiguous", "supported_by_tool": null, "behavior": "Sonuç değişkeninin türü, grup/ölçüm yapısı ve etki büyüklüğü belirsiz; ajan tahmin yapmamalı, araştırmacıya bu bilgileri sormalı."}
+      "expected": {
+        "label": "ambiguous",
+        "supported_by_tool": null,
+        "behavior": "Sonuç değişkeninin türü, grup/ölçüm yapısı ve etki büyüklüğü belirsiz; ajan tahmin yapmamalı, araştırmacıya bu bilgileri sormalı.",
+        "parameters": null,
+        "n_total": null,
+        "n_total_note": "Sonuç türü, grup/ölçüm yapısı, etki büyüklüğü ve α/güç verilmediği için N belirlenemez; doğru davranış eksik bilgiyi sormak."
+      }
     }
   ]
 }
