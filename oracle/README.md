@@ -19,7 +19,8 @@ Kâhin G\*Power 3.1.9.7'nin kendisidir. Beklenen değeri ajan değil G\*Power be
 - GUI vektörü: en az 30 tane, her biri ekran görüntüsüyle.
 - G\*Power yolu: Test family **χ² tests** → Statistical test **Goodness-of-fit tests: Contingency tables**.
 - Sınırlar mutlaka olmalı: w çok küçük, w çok büyük, güç ≤ α, df = 1 ve büyük df, geçersiz girdiler.
-- pwr/statsmodels N'yi kesirli verir, G\*Power yukarı yuvarlar. Bu satırlarda `notes` sütununa ham kesirli N yazılır.
+- Ölçek vektörleri bu CSV'de değil, `tests/reports/statsmodels_vectors.csv` dosyasındadır: Python statsmodels ile üretilmiş 894 vektör. Raporu `tests/reports/statsmodels_report.md`. R `pwr` makinede kurulu olmadığı için kullanılmadı.
+- statsmodels N'yi kesirli verir, G\*Power ise tamsayıya çevirir. Kesirli N ile tamsayı N arasındaki ilişki o raporda ve README'nin "kesirli N → tamsayı N" bölümünde açıklanıyor.
 
 ## Kılavuz örnekleri
 

@@ -47,10 +47,11 @@ Testler ve raporlar:
 
 ## Sonuçlar
 
-- pytest: **186 geçti, 1 atlandı** (`oracle/vectors.csv` henüz yok → `test_oracle_gate` atlanıyor).
+- pytest (temiz oda klasöründe): **186 geçti, 1 atlandı**. Atlanan test `test_oracle_gate`; çünkü `oracle/vectors.csv` o klasörde yoktu.
+  Birleştirilmiş repoda kâhin CSV'si bulunduğu için o test de çalışıyor: **187 geçti, 0 atlandı**.
 - SPEC vektörleri üzerinde diferansiyel rapor (`tests/reports/differential_report_spec.md`): 30/30 vektör tüm alanlarda tutuyor.
   **KAPI: 22/23 = %95.65** (G-013 doğrulanamayan sayıldığında); doğrulanabilirler üzerinde %100. Eşik %90 → GEÇTİ.
-  Not: kâhin CSV'si gelince aynı betik onunla tekrar çalıştırılmalı; bu oran SPEC'teki tablodan türetilmiştir.
+  Bu oran SPEC'teki tablodan türetilmiştir. Gerçek kâhin CSV'siyle üretilen rapor `tests/reports/differential_report.md` dosyasında: 30/30 vektör tutuyor, KAPI **%93.33**. Oranın farklı olması paydadan kaynaklanıyor: o raporda yalnızca a priori `n_total` alanı sayılıyor.
 - statsmodels (`tests/reports/statsmodels_report.md`): 594/594 a priori vektörde `n_total = ⌈N_sm⌉`; 594/594 minimallik
   (güç(n_total) ≥ hedef, güç(n_total − 1) < hedef); 300/300 post hoc güç 7 ondalıkta eşit (en büyük fark 4.4e-16).
   R `pwr` makinede kurulu olmadığı için kullanılmadı.
