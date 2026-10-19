@@ -344,7 +344,18 @@ Yönergedeki "eşit olmayan grup oranı" sınır değeri bu teste uygulanamaz: g
 
 ## Demo
 
-_TODO: 60 saniyelik CLI videosu bağlantısı_
+▶️ **[Demo videosu (53 sn): `docs/demo.mp4`](docs/demo.mp4)**
+
+Videoda sırasıyla şunlar var:
+1. A priori hesap ve aynı girdilerle G\*Power'ın ekranı (N = 145).
+2. Tablo boyutundan df ile hesap (3×3 → N = 133).
+3. Post hoc güç.
+4. Geçersiz girdi: G\*Power'ın mesajıyla birebir aynı hata ve sıfırdan farklı çıkış kodu.
+5. Uyum raporu (30/30, KAPI %93,33).
+6. Test paketi (187 test).
+7. Türkçe soruyu MCP aracıyla yanıtlayan AI ajanı.
+
+Video, bu komutların gerçek çalıştırma çıktılarından üretilmiş bir terminal kaydıdır. Test paketi (~2 dk) ve ajanın yanıtı (~15 sn) gibi bekleme süreleri kısaltılmıştır.
 
 ## Atıf
 
