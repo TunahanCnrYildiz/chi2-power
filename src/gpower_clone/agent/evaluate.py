@@ -175,7 +175,9 @@ def build_report(questions: list[dict], main_recs: list[dict], s1_recs: list[dic
             q, s, fj = qs[r["id"]], r["score"], r.get("final_json") or {}
             exp = q["expected"]
             calls = r.get("tool_calls") or []
-            want = f"{exp['n_total']} / {exp['actual_power']}" if "n_total" in exp else "yönlendir / sor"
+            # Kapsam dışı sorularda da referans n_total olabilir (eval_set v2); beklenen davranış yönlendirmedir.
+            want = (f"{exp['n_total']} / {exp['actual_power']}" if exp["label"] == "chi2-contingency"
+                    else "yönlendir / sor")
             L.append(f"| {r['id']} | {exp['label']} | {fj.get('label', '—')} | {_fmt_args(calls[-1] if calls else None)} "
                      f"| {fj.get('n_total')} | {fj.get('actual_power')} | {want} | "
                      f"{'✔' if s['behavior_ok'] else '✘'} | {'⚠ evet' if s['agent_made_numbers'] else 'hayır'} |")

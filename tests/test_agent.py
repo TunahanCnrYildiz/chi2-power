@@ -374,3 +374,17 @@ def test_report_groups_previous_tool_runs(tmp_path):
     primary, previous = md.split("### Önceki çalıştırma")[0], md.split("### Önceki çalıştırma")[1]
     assert "444" in primary and "333" not in primary
     assert "333" in previous and "chi2_contingency_power" in previous
+
+
+def test_report_handles_out_of_scope_reference_values(tmp_path):
+    """eval_set'te kapsam dışı sorular referans n_total taşıyabilir (actual_power olmadan)."""
+    from gpower_clone.agent import evaluate
+
+    run = _run('{"label": "t2-indep", "n_total": null, "actual_power": null}', [])
+    run.update(usage={"input_tokens": 1, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0,
+                      "output_tokens": 1}, duration_s=1.0, num_turns=1, init_tools=[TOOL],
+               requested_model="claude-opus-5-5", tool=TOOL)
+    q = dict(Q["Q07"], expected=dict(Q["Q07"]["expected"], n_total=210))
+    rec = {"id": "Q07", **run, "score": scoring.score_main(q, run)}
+    md = evaluate.build_report([q], [rec], [], tmp_path / "gui_results.json")
+    assert "| Q07 | t2-indep | t2-indep |" in md and "yönlendir / sor" in md

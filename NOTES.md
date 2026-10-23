@@ -267,12 +267,12 @@ Hekimin Türkçe sorusu
        ├─ chi2-contingency ve confidence ≥ 0.75 → MCP ajanı
        ├─ bilinen ama desteklenmeyen aile (t2-indep, t-paired, anova-oneway, multireg-r2) → "desteklenmiyor, araştırmacıya danışın"
        └─ ambiguous / unsupported ya da confidence < 0.75 → "araştırmacıya sorun"
-  └─ MCP ajanı (claude -p --model claude-opus-5-5; tek araç mcp__gpower-clone__chi2_contingency_power)
+  └─ MCP ajanı (claude -p --model claude-opus-5-5; tek araç mcp__gpower-clone__power_analysis, test + mode ile)
        └─ gpower-clone MCP sunucusu → service.compute → engine (bütün sayılar buradan)
 ```
 
 - **Ajan hesap yapmaz.** Yerleşik araçların hepsi kapalı (`--tools ""`). Yalnızca gpower-clone MCP sunucusu
-  bağlanıyor (`--mcp-config` + `--strict-mcp-config`); izinli tek araç `--allowedTools mcp__gpower-clone__chi2_contingency_power`,
+  bağlanıyor (`--mcp-config` + `--strict-mcp-config`); izinli tek araç `--allowedTools mcp__gpower-clone__power_analysis` (sözleşme öncesi turlarda `chi2_contingency_power`),
   izin kipi `--permission-mode dontAsk` (izinsiz her şey reddedilir). `init` olayındaki araç listesi kayıtta
   saklanıyor ve gerçek çalıştırmalarda yalnızca bu aracı içeriyor.
 - **Tablo boyutundan df:** Hekim "3×3" der. Ajan bunu `rows = 3, cols = 3` olarak iletir; df = (r − 1)(c − 1)
@@ -345,6 +345,19 @@ dosyasına yazılır. Üçüncüsü raporu kayıtlardan yeniden üretir; GUI son
    - belirsiz soru → yalnızca "sor".
 7. **Kalibrasyon aralıkları:** 0.9–1.0, 0.75–0.9 (yönlendirme eşiği) ve < 0.75.
 8. **Açık model kimlikleri.** `opus` ve `haiku` takma adları CLI sürümüne göre farklı modellere çözülebildiği için ana ajanda ve Sistem 1'de varsayılan olarak açık kimlikler kullanılır: `claude-opus-5-5` ve `claude-haiku-5-5`. `--main-model` ve `--s1-model` ile değiştirilebilir. Raporda ana sonuç, en son çalıştırılan modelin kayıtlarıdır; önceki modellerin kayıtları silinmez ve "Önceki çalıştırma" alt bölümlerinde özetlenir.
+9. **Sözleşme v1.0.0 (§0.8) ile ajan.**
+   - Ajan, aracı `test = "chi2-contingency"` ve `mode` ile çağırıyor; alan adları sözleşmeninkiler.
+   - Post hoc'ta araç `power` döndürüyor. JSON satırındaki `actual_power`, bu değerle birebir karşılaştırılıyor.
+   - Kategori eşlemesinde ("orta etki" → w = 0,3) varsayımı açıkça söyleme kuralı prompt'a yazıldı.
+   - Rapor, ana ajan kayıtlarını model ve araç adına göre ayırıyor; eski araç adıyla yapılan turlar
+     "Önceki çalıştırma" altında kalıyor.
+10. **Araç çağrı kayıtları (`logs/agent_calls.jsonl`, §0.8).** Her araç çağrısı bir satır:
+    `{"ts","question","tool_input","tool_output","tokens_in","tokens_out"}`.
+    - stream-json, çağrı başına güvenilir token vermiyor: `assistant` olaylarındaki `usage` akış sırasındaki ara
+      değeri gösteriyor. Bu yüzden token'lar o sorunun `claude -p` oturumunun ölçülmüş toplamı
+      (`tokens_in` = girdi + önbellek yazma + önbellek okuma, `tokens_out` = çıktı).
+    - Bir oturumda birden çok araç çağrısı olursa toplam çağrılara eşit bölünüyor.
+    - Araç çağrılmayan sorular (Q07–Q10) satır üretmiyor. Yalnızca kurgusal sorular kullanılıyor.
 
 ### Sonuçlar
 
@@ -374,7 +387,7 @@ Toplam çağrı sayısı **140**: her turda 10 ana ajan ve 60 Sistem 1 çağrıs
 | Token (10 soru, tüm modeller) | 50 811 | 47 126 |
 | Süre (duvar saati) | 124.0 s | 88.6 s |
 
-- **Araç erişimi.** İki turda da ajanın gördüğü tek araç `mcp__gpower-clone__chi2_contingency_power` oldu
+- **Araç erişimi.** Tur 1–2'de ajanın gördüğü tek araç `mcp__gpower-clone__chi2_contingency_power` oldu
   (`init` olayından).
 - **Q03.** Tur 1'de Opus 4.8 JSON satırında `actual_power` alanını boş (`null`) bırakmıştı. Tur 2'de Opus 5.5 bu
   alanı araç sonucunun bütün basamaklarıyla doldurdu. Puanlama değiştirilmedi; iki sonuç da olduğu gibi raporlandı.
