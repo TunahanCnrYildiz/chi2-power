@@ -36,10 +36,26 @@ MSG_N_INTEGER = "Total sample size must be an integer."  # A-3
 MSG_ROWS = "Number of rows must be an integer greater or equal two."
 MSG_COLS = "Number of columns must be an integer greater or equal two."
 MSG_BRACKET_OVERFLOW = "Unable to bracket the total sample size (upper bound overflow)."
+# Sözleşme v1.0.0 aralıkları (SPEC §0.5); G*Power bu değerleri kabul eder, mesajlar tasarım kararıdır:
+MSG_W_CONTRACT = "Effect size w must be greater than 0."
+MSG_N_CONTRACT = "Total sample size must be at least 2."
+MSG_DF_INTEGER = "Degrees of Freedom must be an integer."
+
+# Hata kodları (SPEC §0.4)
+OUT_OF_RANGE, INVALID_VALUE, INCONSISTENT = "OUT_OF_RANGE", "INVALID_VALUE", "INCONSISTENT"
 
 
 class InputError(ValueError):
-    """Geçersiz girdi; mesaj G*Power'ın mesajıyla birebir aynıdır (SPEC §2.2)."""
+    """Geçersiz girdi. Mesaj mümkünse G*Power'ın mesajıdır (SPEC §2.2); kod ve alan §0.4'e göre."""
+
+    def __init__(self, message: str, code: str = OUT_OF_RANGE, field: str | None = None):
+        super().__init__(message)
+        self.code = code
+        self.field = field
+
+
+class NoSolution(ArithmeticError):
+    """Girdiler geçerli ama sonuç üretilemiyor (SPEC §0.4: NO_SOLUTION)."""
 
 
 class BracketOverflow(ArithmeticError):
@@ -165,38 +181,61 @@ def round_n(n: float) -> int:
 # ---------- Doğrulama (SPEC §2.1, §2.2) ----------
 # Karşılaştırmalar `not (...)` biçiminde yazılır: NaN her kontrolde başarısız olur.
 
-def _check_df(df: float) -> None:
+def _is_integer(x: float) -> bool:
+    return math.isfinite(x) and x == math.floor(x)
+
+
+def _check_df(df: float, contract: bool) -> None:
     if not df >= 1:
-        raise InputError(MSG_DF)
+        raise InputError(MSG_DF, OUT_OF_RANGE, "df")
+    if contract and not _is_integer(df):  # §0.5: df tam sayı (G-019'da G*Power 2.5'i kabul eder)
+        raise InputError(MSG_DF_INTEGER, INVALID_VALUE, "df")
 
 
 def _check_alpha(alpha: float) -> None:
     if not ALPHA_MIN <= alpha <= ALPHA_MAX:
-        raise InputError(MSG_ALPHA_RANGE)
+        raise InputError(MSG_ALPHA_RANGE, OUT_OF_RANGE, "alpha")
 
 
-# ---------- Tablo boyutu (ajan katmanı için; SPEC dışı) ----------
+def _check_power(power: float, alpha: float) -> None:
+    if not POWER_MIN <= power <= POWER_MAX:
+        raise InputError(MSG_POWER_RANGE, OUT_OF_RANGE, "power")
+    if power < alpha:
+        raise InputError(MSG_POWER_LT_ALPHA, INCONSISTENT, "power")
+
+
+def _check_n(n: float, contract: bool) -> int:
+    if not N_MIN <= n <= N_MAX:
+        raise InputError(MSG_N_RANGE, OUT_OF_RANGE, "n_total")
+    if not _is_integer(n):
+        raise InputError(MSG_N_INTEGER, INVALID_VALUE, "n_total")
+    if contract and n < 2:  # §0.5: n_total ≥ 2 (G-025'te G*Power N = 1'i kabul eder)
+        raise InputError(MSG_N_CONTRACT, OUT_OF_RANGE, "n_total")
+    return int(n)
+
+
+# ---------- Tablo boyutu (ajan katmanı için; SPEC dışı, §0.1 uzantısı) ----------
 
 def df_from_table(rows: float, cols: float) -> float:
     """r × c olumsallık tablosunun serbestlik derecesi: (r − 1)(c − 1)."""
-    for value, message in ((rows, MSG_ROWS), (cols, MSG_COLS)):
-        if not (value >= 2 and value == math.floor(value)):
-            raise InputError(message)
+    for value, message, field in ((rows, MSG_ROWS, "rows"), (cols, MSG_COLS, "cols")):
+        if not _is_integer(value):
+            raise InputError(message, INVALID_VALUE, field)
+        if not value >= 2:
+            raise InputError(message, OUT_OF_RANGE, field)
     return float((int(rows) - 1) * (int(cols) - 1))
 
 
 # ---------- Modlar ----------
+# contract=True: sözleşme v1.0.0 aralıkları (SPEC §0.5) da uygulanır; False: yalnızca G*Power kuralları.
 
-def a_priori(w: float, alpha: float, power: float, df: float) -> Result:
+def a_priori(w: float, alpha: float, power: float, df: float, contract: bool = True) -> Result:
     """Hedef güce ulaşmak için gereken toplam N."""
-    _check_df(df)
+    _check_df(df, contract)
     if not w >= W_MIN_A_PRIORI:
-        raise InputError(MSG_W_A_PRIORI)
+        raise InputError(MSG_W_A_PRIORI, OUT_OF_RANGE, "w")
     _check_alpha(alpha)
-    if not POWER_MIN <= power <= POWER_MAX:
-        raise InputError(MSG_POWER_RANGE)
-    if power < alpha:
-        raise InputError(MSG_POWER_LT_ALPHA)
+    _check_power(power, alpha)
 
     crit = critical_value(alpha, df)
     n_frac, lo = _solve_n(w, power, crit, df)
@@ -226,21 +265,19 @@ def _solve_n(w: float, power: float, crit: float, df: float) -> tuple[float, flo
     try:
         lo, hi = find_bracket(f)
     except BracketOverflow:
-        raise InputError(MSG_BRACKET_OVERFLOW) from None
+        raise NoSolution(MSG_BRACKET_OVERFLOW) from None
     return brent(f, lo, hi), lo
 
 
-def post_hoc(w: float, alpha: float, n: float, df: float) -> Result:
+def post_hoc(w: float, alpha: float, n: float, df: float, contract: bool = True) -> Result:
     """Verilen toplam N için güç."""
-    _check_df(df)
+    _check_df(df, contract)
     if not w >= 0:
-        raise InputError(MSG_W_POST_HOC)
+        raise InputError(MSG_W_POST_HOC, OUT_OF_RANGE, "w")
+    if contract and not w > 0:  # §0.5: w > 0 (G-023'te G*Power w = 0'ı kabul eder)
+        raise InputError(MSG_W_CONTRACT, OUT_OF_RANGE, "w")
     _check_alpha(alpha)
-    if not N_MIN <= n <= N_MAX:
-        raise InputError(MSG_N_RANGE)
-    if n != math.floor(n):
-        raise InputError(MSG_N_INTEGER)
-    n_total = int(n)
+    n_total = _check_n(n, contract)
 
     crit = critical_value(alpha, df)
     ncp = w * w * n_total
