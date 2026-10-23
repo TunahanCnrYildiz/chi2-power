@@ -131,17 +131,40 @@ Tasarım kararları:
   - criterion'ın α değeri post hoc'a verilince hedef güç geri geliyor;
   - compromise'da β/α = q.
 
-**Süre (§0.1, 2 s sınırı)**
-- Alt süreç olarak sıcak çağrı 0.85–0.88 s (30 SPEC vektörü, `differential_report_spec.md`). Ölçüm: boş Python 0.03 s,
-  scipy.stats importuyla 0.85 s; sürenin neredeyse tamamı scipy.stats importu. Bütün testlerde her çağrı 2 s'nin altında.
-- **Soğuk başlangıç:** Bilgisayar açıldıktan ya da Python/scipy güncellendikten sonraki ilk çağrıda dosya
-  önbelleği boşken scipy.stats importu bir kez **10.7 s** ölçüldü (`-X importtime`). Bu, sonraki çağrılarda
-  tekrarlanmadı. Değerlendirme düzeneği soğuk diskte ilk çağrıyı yaparsa 2 s'yi aşabilir. Önlem olarak sınavdan
-  önce bir kez `gpower-clone --version` ya da bir hesap çalıştırmak yeterli.
+**Süre (§0.1, 2 s sınırı) ve import kısaltması**
+
+Motorun dağılım fonksiyonları `scipy.stats` yerine daha hafif `scipy.special` modülünden geliyor:
+
+| Gereken | Önce (`scipy.stats`) | Şimdi (`scipy.special`) |
+|---|---|---|
+| Merkezi χ² CDF | `chi2.cdf(x, df)` | `chdtr(df, x)` |
+| Merkezi χ² üst kuyruk | `chi2.sf(x, df)` | `chdtrc(df, x)` |
+| Kritik değer (1 − α quantile'ı) | `chi2.isf(α, df)` | `chdtri(df, α)` |
+| Merkezi olmayan χ² CDF | `ncx2.cdf(x, df, λ)` | `chndtr(x, df, λ)` |
+
+- **Doğruluk:** scipy 1.18.1'de bu fonksiyonlar scipy.stats ile **bit bit aynı** sonucu veriyor.
+  - `tests/test_import_speed.py` bunu df ∈ {1, 2, 2.5, 5, 30, 100}, 7 α, 6 x ve 5 λ değerinde `==` ile denetliyor.
+  - statsmodels raporu ve 894 vektörün CSV'si değişiklikten sonra yeniden üretildi; dosyalar hiç değişmedi.
+  - 30 SPEC vektörü ve açık vektörler aynı.
+  - scipy.stats artık yalnızca testlerde, karşılaştırma için kullanılıyor.
+- **Ölçülen süre** (alt süreç, 7 tekrarın medyanı / en büyüğü):
+
+| | Önce (scipy.stats) | Sonra (scipy.special) |
+|---|---|---|
+| `import gpower_clone.service` | 0.84 / 0.89 s | 0.44 / 0.44 s |
+| Tam a priori çağrı (G-001) | 0.85 / 0.86 s | 0.43 / 0.45 s |
+| 30 SPEC vektörü (differential), en yavaş | 0.88 s | 0.47 s |
+
+  Karşılaştırma için boş Python 0.03 s.
+- **Soğuk başlangıç.** Değişiklikten önce, bilgisayar açıldıktan ya da Python/scipy güncellendikten sonraki ilk
+  çağrıda (dosya önbelleği boşken) scipy.stats importu bir kez **10.7 s** ölçüldü (`-X importtime`). Bu süre
+  sonraki çağrılarda tekrarlanmadı. Bu soğuk durum bu ortamda yeniden üretilemediği için yeni modülle ölçülemedi.
+  Daha az modül yüklendiğinden soğuk süre de kısalmalı, ama bu doğrulanmadı. Düzenek soğuk diskte ilk çağrıyı
+  yaparsa önlem olarak önce bir kez `gpower-clone --version` çalıştırmak yeterli.
 
 ## Sonuçlar
 
-- pytest: **292 geçti, 1 atlandı** (`oracle/vectors.csv` henüz yok → `test_oracle_gate` atlanıyor)
+- pytest: **307 geçti, 1 atlandı** (`oracle/vectors.csv` henüz yok → `test_oracle_gate` atlanıyor)
 - **SPEC vektörleri** (`tests/reports/differential_report_spec.md`, §0.6 toleransı):
   - 30/30 vektör beklenen sonucu veriyor: 20 hesap, 7 G*Power hatası (mesaj, kod ve alan), 3 sözleşme farkı.
   - **KAPI: 13/14 = %92.86.** Payda yalnızca a priori `n_total` vektörlerinden oluşuyor; G-019 hariç tutuldu,
@@ -361,7 +384,7 @@ dosyasına yazılır. Üçüncüsü raporu kayıtlardan yeniden üretir; GUI son
 
 ### Sonuçlar
 
-Ölçüm 2026-10-18, abonelik girişiyle (Pro). İki tur yapıldı; ikisinin kaydı da
+Ölçüm 2026-10-18 ve 2026-10-23, abonelik girişiyle (Pro). Üç ana ajan turu yapıldı; hepsinin kaydı
 `tests/reports/agent/main_runs.jsonl` ve `system1_runs.jsonl` dosyalarında duruyor. Bu kayıtlarda araç adı,
 argümanlar, sonuç, son cevap, süre ve token var. Ayrıntılı rapor: [tests/reports/agent_report.md](tests/reports/agent_report.md).
 
@@ -372,20 +395,33 @@ argümanlar, sonuç, son cevap, süre ve token var. Ayrıntılı rapor: [tests/r
    CLI 2.1.211 Opus 5.5'i reddetti ("version 2.1.280 or newer is required"). Kullanıcının izniyle `claude update`
    çalıştırıldı ve CLI 2.1.302'ye güncellendi. Bu sürümde iki kimlik de kabul ediliyor; JSON çıktısındaki model
    alanında `claude-opus-5-5` ve `claude-haiku-5-5` görünüyor.
+3. **Tur 3 (ana sonuç, sözleşme v1.0.0):** Yalnızca ana ajan `claude-opus-5-5` ile yeniden çalıştırıldı. Değişenler:
+   - yeni araç `power_analysis` (`test` + `mode`) ve sözleşme alan adları;
+   - prompt'ta kategori varsayımını açıkça söyleme kuralı;
+   - araç çağrıları `logs/agent_calls.jsonl` dosyasına yazılıyor (6 satır: Q01–Q06'da birer çağrı).
 
-Toplam çağrı sayısı **140**: her turda 10 ana ajan ve 60 Sistem 1 çağrısı. Bunlara değerlendirmeye girmeyen
-6 doğrulama ve hata ayıklama çağrısı (biri CLI tarafından reddedildi) ekleniyor. Prompt ve puanlama iki turda aynı.
+   Sistem 1'in arayüzü değişmediği için Sistem 1 yeniden çalıştırılmadı; Tur 2 sonuçları geçerli.
+
+Toplam çağrı sayısı **150**: Tur 1–2'de 10 ana ajan + 60 Sistem 1 çağrısı, Tur 3'te 10 ana ajan çağrısı. Bunlara
+değerlendirmeye girmeyen 6 doğrulama ve hata ayıklama çağrısı ekleniyor; biri CLI tarafından reddedildi.
 
 **Ana ajan (MCP yolu)**
 
-| Ölçüt | Tur 2: claude-opus-5-5 | Tur 1: claude-opus-4-8 |
-|---|---|---|
-| Doğru seçim oranı (etiket, 10 soru) | **10/10** | 10/10 |
-| Doğru davranış | **10/10** | 9/10 (Q03) |
-| χ² sorularında parametre / N / güç (7 ondalık) | 6/6 / 6/6 / 6/6 | 6/6 / 6/6 / 5/6 |
-| "Ajan sayı üretti" bayrağı | 0 | 0 |
-| Token (10 soru, tüm modeller) | 50 811 | 47 126 |
-| Süre (duvar saati) | 124.0 s | 88.6 s |
+| Ölçüt | Tur 3: claude-opus-5-5, `power_analysis` | Tur 2: claude-opus-5-5 | Tur 1: claude-opus-4-8 |
+|---|---|---|---|
+| Doğru seçim oranı (etiket, 10 soru) | **10/10** | 10/10 | 10/10 |
+| Doğru davranış | **10/10** | 10/10 | 9/10 (Q03) |
+| χ² sorularında parametre / N / güç (7 ondalık) | 6/6 / 6/6 / 6/6 | 6/6 / 6/6 / 6/6 | 6/6 / 6/6 / 5/6 |
+| "Ajan sayı üretti" bayrağı | 0 | 0 | 0 |
+| Token (10 soru, tüm modeller) | 59 273 | 50 811 | 47 126 |
+| Süre (duvar saati) | 106.2 s | 124.0 s | 88.6 s |
+
+- **Tur 3 ayrıntıları.**
+  - Ajanın gördüğü tek araç `mcp__gpower-clone__power_analysis` oldu.
+  - Bütün χ² çağrıları `test = "chi2-contingency"`, doğru `mode`, `rows`/`cols` ve post hoc'ta `n_total` ile yapıldı.
+  - Q02'de (orta etki) ve Q04'te (büyük etki) ajan varsayımı açıkça yazdı. Örnek: "Orta düzey etki ifadesini
+    Cohen w = 0,3 olarak aldım."
+  - Token artışı (≈ +8 500) uzayan prompt'tan ve araç açıklamasından geliyor.
 
 - **Araç erişimi.** Tur 1–2'de ajanın gördüğü tek araç `mcp__gpower-clone__chi2_contingency_power` oldu
   (`init` olayından).
@@ -412,14 +448,14 @@ Toplam çağrı sayısı **140**: her turda 10 ana ajan ve 60 Sistem 1 çağrıs
   İngilizcede güven biraz fazlaydı.
 - **İki dil.** Tur 2'de Türkçe ile İngilizce arasında doğrulukta fark yok.
 
-**MCP ↔ GUI** (ana sonuç Tur 2; GUI ölçümleri `gui_results.json` ve `gui_overhead.json` dosyalarından okundu,
+**MCP ↔ GUI** (ana sonuç Tur 3; GUI ölçümleri `gui_results.json` ve `gui_overhead.json` dosyalarından okundu,
 değiştirilmedi; iki yolda da ana model Opus 5.5)
 
-| | MCP (claude-opus-5-5) | GUI (Opus 5.5) |
+| | MCP (claude-opus-5-5, Tur 3) | GUI (Opus 5.5) |
 |---|---|---|
-| Token (yalnızca soru pencereleri) | 50 811 | 2 978 621 (59×) |
-| Token (hazırlık ve kapanış dahil) | 50 811 | 3 746 372 (74×) |
-| Süre | 124.0 s | 129.8 s |
+| Token (yalnızca soru pencereleri) | 59 273 | 2 978 621 (50×) |
+| Token (hazırlık ve kapanış dahil) | 59 273 | 3 746 372 (63×) |
+| Süre | 106.2 s | 129.8 s |
 | Doğruluk | 10/10 | 10/10 |
 | Ekran görüntüsü | 0 | 16 |
 

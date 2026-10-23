@@ -11,7 +11,9 @@ import math
 from dataclasses import dataclass
 from typing import Callable
 
-from scipy.stats import chi2, ncx2
+# scipy.special (scipy.stats değil): soğuk başlangıçta import ~0.4 s daha kısa (§0.1, 2 s sınırı).
+# Bu sürümde scipy.stats'ın chi2/ncx2 fonksiyonlarıyla bit bit aynı sonuç verir (tests/test_import_speed.py).
+from scipy.special import chdtr, chdtrc, chdtri, chndtr
 
 
 ALPHA_MIN, ALPHA_MAX = 1e-7, 0.9999999
@@ -80,14 +82,14 @@ def ncx2_cdf(x: float, df: float, lam: float) -> float:
     if math.isinf(x):
         return 1.0
     if lam < 1e-100:
-        return float(chi2.cdf(x, df))
-    return float(ncx2.cdf(x, df, lam))
+        return float(chdtr(df, x))
+    return float(chndtr(x, df, lam))
 
 
 def critical_value(alpha: float, df: float) -> float:
     """Merkezi χ²(df) dağılımının (1 − α) quantile'ı."""
     # isf(α) = ppf(1 − α); isf küçük α'da 1 − α'nın yuvarlama kaybını önler.
-    return float(chi2.isf(alpha, df))
+    return float(chdtri(df, alpha))
 
 
 def power_at(w: float, n: float, critical: float, df: float) -> float:
@@ -340,7 +342,7 @@ def _expand_until(f: Callable[[float], float], start: float = 1.0) -> float:
 
 def _alpha_of(c: float, df: float) -> float:
     """α(c) = 1 − F₀(c; df) (merkezi χ²'nin üst kuyruğu)."""
-    return float(chi2.sf(c, df))
+    return float(chdtrc(df, c))
 
 
 def sensitivity(alpha: float, power: float, n: float, df: float, contract: bool = True) -> SensitivityResult:
