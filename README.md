@@ -1,8 +1,8 @@
 # chi2-power · χ² Olumsallık Tablosu Güç Analizi
 
 > **Yapılan katmanlar**
-> - ✅ **Temel katman (CLI):** tamamlandı. KAPI geçti: N tam eşleşme %93.33; doğrulanabilir vektörlerde %100.
-> - ✅ **MCP sunucusu (+15):** tamamlandı. Tek araç `chi2_contingency_power`; aynı motoru çağıran ince bir adaptör. 30 vektörde CLI ile birebir aynı çıktı ([aşağıda](#mcp-sunucusu-bonus-katman)).
+> - ✅ **Temel katman (CLI):** tamamlandı; eğitmenin arayüz sözleşmesi v1.0.0 ile uyumlu. KAPI geçti: a priori N tam eşleşme %92.86; doğrulanabilir vektörlerde %100.
+> - ✅ **MCP sunucusu (+15):** tamamlandı. Sözleşmedeki tek araç `power_analysis`; aynı motoru çağıran ince bir adaptör. 25 açık referans vektöründe ve 30 SPEC vektöründe CLI ile birebir aynı çıktı ([aşağıda](#mcp-sunucusu-bonus-katman)).
 > - ✅ **AI ajanı (+10):** tamamlandı. Türkçe klinik soruyu MCP aracıyla yanıtlıyor. Doğru seçim 10/10. Ölçülmüş MCP ↔ GUI karşılaştırması: GUI yolu ≈ 59–74× token harcıyor. Jev yerine etiketle kısıtlı LLM kullanıldı ([aşağıda](#ai-ajanı-bonus-katman)).
 
 G\*Power 3.1.9.7'nin **χ² testi, olumsallık tablosu** hesabının temiz oda yöntemiyle yeniden yazımıdır.
@@ -12,60 +12,79 @@ G\*Power 3.1.9.7'nin **χ² testi, olumsallık tablosu** hesabının temiz oda y
 
 ## Hızlı başlangıç
 
-Gereksinim: Python ≥ 3.10 (Python 3.14 ile geliştirildi ve test edildi).
+Gereksinim: Python ≥ 3.10 (Python 3.14 ile geliştirildi ve test edildi). Kurulum tek komut:
 
 ```bash
-python -m venv .venv
-.venv/Scripts/python -m pip install -e ".[test,diff,mcp]"
+python -m venv .venv && .venv/Scripts/python -m pip install -e ".[test,diff,mcp]"
 ```
 
 Linux ve macOS'ta `.venv/Scripts/` yerine `.venv/bin/` kullanılır. Kurulumdan sonra `gpower-clone` komutu sanal ortamda hazırdır.
 
+Arayüz, eğitmenin **arayüz sözleşmesi v1.0.0** ile uyumludur (komut, alan adları, çıktı alanları, hata biçimi). Sözleşme gereği kararlar SPEC §0'da.
+
 **A priori: gereken toplam N**
 
 ```bash
-gpower-clone --test chi2-contingency --mode a-priori --w 0.3 --alpha 0.05 --power 0.95 --df 1
+gpower-clone --test chi2-contingency --mode a-priori --w 0.3 --alpha 0.05 --power 0.95 --df 5
 ```
 
 ```json
-{"n_total":145,"actual_power":0.9507851454132252,"critical":3.8414588206941285,"df":1,"ncp":13.049999999999999}
+{"ncp":19.8,"critical_chi2":11.070497693516355,"n_total":220,"actual_power":0.9502155018970163}
 ```
 
 **Post hoc: ulaşılan güç**
 
 ```bash
-gpower-clone --test chi2-contingency --mode post-hoc --w 0.3 --alpha 0.05 --n 100 --df 1
-```
-
-**Geçersiz girdi.** Tek satır JSON hata ve sıfırdan farklı çıkış kodu verir:
-
-```bash
-gpower-clone --test chi2-contingency --mode a-priori --w 0.3 --alpha 0.05 --power 0.8 --df 0
+gpower-clone --test chi2-contingency --mode post-hoc --w 0.3 --alpha 0.05 --n_total 100 --df 5
 ```
 
 ```json
-{"error":"Degrees of Freedom must be greater or equal one."}
+{"ncp":9.0,"critical_chi2":11.070497693516355,"power":0.6235846116825698}
+```
+
+**Geçersiz girdi.** Tek satır JSON hata verir; çıkış kodu `2`:
+
+```bash
+gpower-clone --test chi2-contingency --mode a-priori --w 0.3 --alpha 0.05 --power 0.04 --df 1
+```
+
+```json
+{"error":"Power must be greater than or equal to alpha.","code":"INCONSISTENT","field":"power"}
+```
+
+**Sürüm sorgusu**
+
+```bash
+gpower-clone --version
+```
+
+```json
+{"contract_version":"1.0.0","name":"chi2-power","engine":"Python 3.14.6, scipy 1.18.1"}
 ```
 
 `python -m gpower_clone …` de aynı şekilde çalışır.
 
-### CLI sözleşmesi
+### CLI sözleşmesi (χ² olumsallık tablosu)
 
-| Parametre | Mod | Anlamı | Geçerli aralık |
-|---|---|---|---|
-| `--test chi2-contingency` | ikisi | test ailesi | — |
-| `--mode a-priori` \| `post-hoc` | ikisi | analiz türü | — |
-| `--w` | ikisi | etki büyüklüğü w | a priori: w ≥ 1e-6 · post hoc: w ≥ 0 |
-| `--alpha` | ikisi | α | [1e-7, 0.9999999] |
-| `--power` | a priori | güç (1 − β) | [1e-7, 0.9999999] ve ≥ α |
-| `--n` | post hoc | toplam N | tamsayı, [1, 2147483646] |
-| `--df` | ikisi | serbestlik derecesi | ≥ 1 (kesirli df geçerli) |
+| Mod | Girdi alanları | Çıktı alanları |
+|---|---|---|
+| `a-priori` | `w`, `alpha`, `power`, `df` | `ncp`, `critical_chi2`, `n_total`, `actual_power` |
+| `post-hoc` | `w`, `alpha`, `n_total`, `df` | `ncp`, `critical_chi2`, `power` |
 
-- **Çıktı alanları:** `n_total` (tamsayı), `actual_power`, `critical`, `df`, `ncp`. Sayılar yuvarlanmadan tam hassasiyetle yazılır.
-- **Neden n1/n2 yok:** Bu testte grup yoktur, yalnızca toplam N vardır.
-- **Eş adlar:** `--n-total` ve `--n_total`, `--mode posthoc` da kabul edilir.
-- **Yok sayılan parametreler:** Yönergenin genel parametreleri `--tails` ve `--ratio` kabul edilir ve yok sayılır.
-- **Adların kaynağı:** Yönergedeki `[LİNK: CONTRACT.md]` bağlantısı boş olduğu için χ²'ye özgü adlar (`--w`, `--df`, `--n`) yönergedeki örnek çağrının adlandırma mantığından çıkarıldı. Ayrıntılı gerekçe SPEC §2 ve §5.1'de.
+| Alan | Tür | Geçerli aralık |
+|---|---|---|
+| `w` | ondalık | > 0 (sözleşme); a priori'de G\*Power gibi ≥ 1e-6 |
+| `alpha` | ondalık | 0 < α < 1 (sözleşme); G\*Power'ın aralığı [1e-7, 0.9999999] |
+| `power` | ondalık | 0 < güç < 1; G\*Power'ın aralığı [1e-7, 0.9999999] ve güç ≥ α |
+| `n_total` | tam sayı | ≥ 2 (sözleşme); G\*Power'ın üst sınırı 2147483646 |
+| `df` | tam sayı | ≥ 1 |
+
+- **Kurallar:** Varsayılan değer yoktur. Eksik alan `MISSING_PARAM`, tanınmayan ya da modla ilgisiz alan `UNKNOWN_PARAM` hatasıdır (ör. post hoc'ta `--power`, χ²'de `--tails`).
+- **Sayılar:** Tam double hassasiyetle yazılır; `n_total` JSON tam sayısıdır. Yalnızca tabloda listelenen alanlar yazılır.
+- **Hatalar:** Biçim `{"error", "code", "field"}`. Kodlar `MISSING_PARAM`, `UNKNOWN_PARAM`, `INVALID_VALUE`, `OUT_OF_RANGE`, `INCONSISTENT`, `UNSUPPORTED`, `NO_SOLUTION`. Çıkış kodu girdi hatasında `2`, iç hatada `1`. `error` metni mümkün olan her yerde G\*Power'ın kendi mesajıdır.
+- **Sözleşme ile G\*Power'ın farklı olduğu üç nokta:** Sözleşme aralıkları G\*Power'dan sıkı. G\*Power'ın kabul ettiği kesirli df (G-019), post hoc'ta w = 0 (G-023) ve N = 1 (G-025) burada **reddedilir**. Raporlarda bunlar ayrıca "sözleşme gereği farklı" diye gösterilir.
+- **Uzantı:** Ajan katmanı için `df` yerine `rows` + `cols` verilebilir; df'yi motor hesaplar. Sözleşmede yoktur ve test düzeneği bunu kullanmaz.
+- **Kapsam:** Diğer test aileleri (`t2-indep`, `t-paired`, `anova-oneway`, `multireg-r2`) `UNSUPPORTED` döndürür.
 
 ### Testler ve raporlar
 
@@ -75,21 +94,31 @@ gpower-clone --test chi2-contingency --mode a-priori --w 0.3 --alpha 0.05 --powe
 .venv/Scripts/python tests/statsmodels_vectors.py
 ```
 
-- `pytest` şunları çalıştırır: kabul testleri (SPEC §6'nın her vektörü ayrı test), motor ve CLI birim testleri, G\*Power kâhinine karşı KAPI testi, 894 vektörlük statsmodels regresyonu ve MCP ve ajan testleri (ajan testleri sahte bir `claude` çalıştırıcısıyla; gerçek ölçümler `python -m gpower_clone.agent.evaluate` ile).
-- `differential.py` CLI'yi gerçek bir alt süreç olarak çalıştırır ve sonucu G\*Power'ın ekrandaki basamak sayısıyla karşılaştırır.
-- `statsmodels_vectors.py`, statsmodels `GofChisquarePower` ile 894 vektör üretir ve karşılaştırır.
+- `pytest` şunları kapsar:
+  - SPEC §6'nın her vektörü ayrı bir kabul testi,
+  - sözleşme testleri (25 açık referans vektörü dahil),
+  - motor ve CLI birim testleri,
+  - G\*Power kâhinine karşı KAPI testi,
+  - 894 vektörlük statsmodels regresyonu,
+  - MCP ve ajan testleri (ajan testleri sahte bir `claude` çalıştırıcısıyla; gerçek ölçümler `python -m gpower_clone.agent.evaluate` ile).
+- `differential.py` CLI'yi gerçek bir alt süreç olarak çalıştırır ve sonucu sözleşmenin toleransıyla karşılaştırır: tam sayılar tam eşleşmeli, ondalıklarda mutlak ya da göreli fark ≤ 1e-6.
+- `statsmodels_vectors.py` statsmodels `GofChisquarePower` ile 894 vektör üretir ve karşılaştırır.
 
 ## Sonuçlar
 
 | Ölçüm | Sonuç | Kaynak |
 |---|---|---|
-| pytest | **187 geçti, 0 atlandı** | `tests/` |
-| G\*Power arayüz vektörleri (kâhin) | **30/30** vektör tüm alanlarda tutuyor (23 hesap + 7 hata mesajı) | [`tests/reports/differential_report.md`](tests/reports/differential_report.md) |
-| **KAPI** (N tam eşleşme, eşik %90) | **%93.33 → GEÇTİ.** Doğrulanabilir vektörlerde %100. | aynı rapor |
+| pytest | **267 geçti, 0 atlandı** | `tests/` |
+| Sözleşmenin açık referans vektörleri (χ²) | a priori N = 220, güç 0.9502155; post hoc güç 0.6235846, **1e-6 toleransla tutuyor** | [`tests/fixtures/public_vectors.jsonl`](tests/fixtures/public_vectors.jsonl) |
+| G\*Power arayüz vektörleri (kâhin) | **30/30** vektör beklenen sonucu veriyor: 20 hesap, 7 G\*Power hata mesajı, 3 sözleşme farkı | [`tests/reports/differential_report.md`](tests/reports/differential_report.md) |
+| **KAPI** (a priori N tam eşleşme, eşik %90) | **%92.86 → GEÇTİ.** Doğrulanabilir vektörlerde %100. | aynı rapor |
 | statsmodels ölçek testi | 894 vektör (594 a priori, 300 post hoc), **uyuşmazlık yok** | [`tests/reports/statsmodels_report.md`](tests/reports/statsmodels_report.md) |
-| MCP ↔ CLI eşdeğerliği | 30/30 vektörde (7 hata dahil) **birebir aynı JSON**; stdio üzerinden uçtan uca test geçti | `tests/test_mcp.py` (40 test) |
+| MCP ↔ CLI eşdeğerliği | 25 açık referans vektörü ve 30 SPEC vektöründe **birebir aynı JSON**; stdio üzerinden uçtan uca test geçti | `tests/test_mcp.py`, `tests/test_contract.py` |
 
-KAPI oranı temkinli hesaplandı. G-013'te (w = 1e-6) G\*Power, N'yi ekranda yalnızca `7.8489e+12` olarak gösteriyor. Bizim değerimiz 7 848 860 509 327 ve bu gösterimle uyumlu; ama tam tamsayı ekrandan doğrulanamadığı için bu vektörü "eşleşmedi" saydık (SPEC §5, A-5).
+KAPI oranı temkinli hesaplandı:
+- Payda yalnızca a priori `n_total` vektörlerinden oluşuyor (14 vektör).
+- G-013'te (w = 1e-6) G\*Power N'yi ekranda yalnızca `7.8489e+12` olarak gösteriyor. Bizim değerimiz 7 848 860 509 327 ve bu gösterimle uyumlu, ama tam tamsayı ekrandan doğrulanamadığı için bu vektörü "eşleşmedi" saydık (SPEC §5, A-5).
+- Eşleşmeyen tek vektör bu; geri kalan 13 vektörün hepsi tam eşleşiyor.
 
 ### Bulgu: kesirli N → tamsayı N
 
@@ -106,7 +135,7 @@ MCP (mcp_server.py) ─┘
 ```
 
 - `mcp_server.py` yalnızca argümanları alır ve `service.compute` fonksiyonunu çağırır; içinde hesap kodu yoktur.
-- `tests/test_mcp.py` bunu kaynak kodu düzeyinde denetler: modülde scipy, `math`, sayı dönüştürme ya da motor fonksiyonu geçmez.
+- Testler bunu kaynak kodu düzeyinde denetler: MCP modülünde scipy, `math`, sayı dönüştürme ya da motor fonksiyonu geçmez.
 - Teknik ayrıntılar: resmi Python MCP SDK'sı (`mcp` 2.3) ve stdio taşıma.
 
 **Çalıştırma**
@@ -130,53 +159,43 @@ Claude Desktop'a eklemek için `claude_desktop_config.json` dosyasına:
 { "mcpServers": { "gpower-clone": { "command": "<repo>/.venv/Scripts/gpower-clone-mcp.exe", "args": [] } } }
 ```
 
-### Araç şeması: `chi2_contingency_power`
+### Araç şeması: `power_analysis`
 
-**Açıklama** (ajanın gördüğü metin, kısa tutuldu): *Chi-square contingency table power analysis (G\*Power compatible). a-priori: give power, returns required n_total. post-hoc: give n, returns actual_power. Invalid input returns isError with {"error": message}.*
+Arayüz sözleşmesine göre tek araç vardır. Alan adları CLI ile aynıdır; `test` ve `mode` zorunludur.
 
 **Girdi** (`inputSchema`)
 
 | Alan | Tip | Zorunlu | Açıklama |
 |---|---|---|---|
+| `test` | string | evet | `chi2-contingency`; diğer aileler `UNSUPPORTED` döner |
 | `mode` | `"a-priori"` \| `"post-hoc"` | evet | a priori: N'yi çöz · post hoc: gücü çöz |
-| `w` | number | evet | Etki büyüklüğü w; a priori ≥ 1e-6, post hoc ≥ 0 |
-| `alpha` | number | evet | α, 1e-7 … 0.9999999 |
-| `df` | number | evet | Serbestlik derecesi ≥ 1 (kesirli olabilir) |
-| `power` | number \| null | a priori'de | Hedef güç, 1e-7 … 0.9999999, ≥ α |
-| `n` | integer \| null | post hoc'ta | Toplam N, 1 … 2147483646 |
+| `w` | number | ikisinde | Etki büyüklüğü w > 0 (a priori'de ≥ 1e-6) |
+| `alpha` | number | ikisinde | α, 1e-7 … 0.9999999 |
+| `power` | number | a priori'de | Hedef güç, 1e-7 … 0.9999999, ≥ α |
+| `n_total` | integer | post hoc'ta | Toplam N, 2 … 2147483646 |
+| `df` | integer | ikisinde | Serbestlik derecesi ≥ 1 (ya da `rows` + `cols`) |
+| `rows`, `cols` | integer | — | Uzantı: tablo boyutu (≥ 2); df'yi motor hesaplar |
 
-**Çıktı** (`outputSchema` / `structuredContent`). Alanlar ve sıraları CLI JSON'u ile aynıdır:
-
-| Alan | Tip | Anlamı |
-|---|---|---|
-| `n_total` | integer | Toplam N (a priori: hesaplanan; post hoc: girdi) |
-| `actual_power` | number | `n_total`'daki güç |
-| `critical` | number | Kritik χ² değeri |
-| `df` | number | Kullanılan df (tamsayı değerliyse `1`, değilse `2.5`) |
-| `ncp` | number | λ = w² · n_total |
-
-**Hata durumları**
-
-- **Geçersiz girdi:** `isError: true`. Hem `structuredContent` hem metin içeriği `{"error": "<mesaj>"}` olur; mesaj CLI ile ve G\*Power ile birebir aynıdır (SPEC §2.2).
-- **Şemaya uymayan girdi** (ör. tamsayı yerine `n = 100.5`): SDK'nın argüman doğrulaması reddeder ve `isError: true` döner (yazım oturumunun tasarım kararı, `NOTES.md`).
+**Çıktı.**
+- Başarıda metin içeriği, CLI'nin stdout JSON satırıyla **birebir aynıdır**: a priori'de `ncp`, `critical_chi2`, `n_total`, `actual_power`; post hoc'ta `ncp`, `critical_chi2`, `power`.
+- Hatada `isError: true` olur ve içerik CLI ile aynı `{"error", "code", "field"}` JSON'udur.
 
 **Örnek çağrı ve sonuç**
 
 ```json
-{"mode": "a-priori", "w": 0.3, "alpha": 0.05, "power": 0.95, "df": 1}
+{"test": "chi2-contingency", "mode": "a-priori", "w": 0.3, "alpha": 0.05, "power": 0.95, "df": 5}
 ```
 ```json
-{"n_total":145,"actual_power":0.9507851454132252,"critical":3.8414588206941285,"df":1,"ncp":13.049999999999999}
+{"ncp":19.8,"critical_chi2":11.070497693516355,"n_total":220,"actual_power":0.9502155018970163}
 ```
 
 ### CLI ↔ MCP eşdeğerlik testleri
 
-`tests/test_mcp.py` dosyasında 40 test var:
-
 | Test | Ne gösteriyor? |
 |---|---|
-| Süreç içi | SPEC'teki 30 vektörün tamamında (7 hata vektörü dahil) MCP sonucu, CLI'nin alt süreç çıktısıyla **birebir** aynı. Karşılaştırma ayrıştırılmış JSON üzerinde, toleranssız. `isError` değeri CLI çıkış koduna karşılık geliyor. |
-| Uçtan uca | Sunucu stdio üzerinden gerçek bir MCP istemcisiyle başlatılıyor. Araç listesi ve şemalar doğrulanıyor; 2 a priori, 2 post hoc ve 2 hata vektörü CLI ile karşılaştırılıyor. |
+| Sözleşmenin 25 açık referans vektörü | Her biri için MCP metni, CLI'nin stdout satırıyla **birebir** aynı. χ² vektörleri doğru sonucu; diğer dört aile, iki yüzde de aynı `UNSUPPORTED` hatasını veriyor. |
+| SPEC'in 30 vektörü ve ek vektörler | Hesaplar, hata mesajları, kodlar ve alanlar iki yüzde de birebir aynı; `isError` CLI çıkış koduna karşılık geliyor. |
+| Uçtan uca | Sunucu stdio üzerinden gerçek bir MCP istemcisiyle başlatılıyor; araç listesi, şema ve örnek çağrılar CLI ile karşılaştırılıyor. |
 | İnce adaptör | MCP modülünde hesap kodu olmadığı kaynak düzeyinde denetleniyor. |
 
 ## AI ajanı (bonus katman)
