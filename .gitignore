@@ -40,3 +40,6 @@ Ogrenciler_gruplar.*
 
 # --- Ders yönergesi (kaynak materyal; repoya girmez) ---
 2026-10-16-odev-supp
+
+# --- Ders sözleşmesi (eğitmen materyali; repoya girmez, açık vektörler tests/fixtures altında) ---
+CONTRACT.md
