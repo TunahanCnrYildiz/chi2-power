@@ -78,19 +78,23 @@ def _latest(records: list[dict]) -> dict[str, dict]:
     return by
 
 
-def _split_by_model(records: list[dict]) -> tuple[list[dict], dict[str, list[dict]]]:
+def _split_by_model(records: list[dict], with_tool: bool = False) -> tuple[list[dict], dict[str, list[dict]]]:
     """Ana sonuç: son kaydın istenen modeliyle yapılan çalıştırmalar; diğerleri önceki çalıştırmalardır."""
     if not records:
         return [], {}
 
-    def key(r):
-        return r.get("requested_model") or "?"
+    def key(r):  # ana ajanda model ve araç adı birlikte: araç adı sözleşmeyle değişti (§0.8)
+        model = r.get("requested_model") or "?"
+        return f'{model} · {r.get("tool") or OLD_TOOL}' if with_tool else model
     primary = key(records[-1])
     prev: dict[str, list[dict]] = {}
     for r in records:
         if key(r) != primary:
             prev.setdefault(key(r), []).append(r)
     return [r for r in records if key(r) == primary], prev
+
+
+OLD_TOOL = "mcp__gpower-clone__chi2_contingency_power"  # sözleşme öncesi araç adı
 
 
 def _resolved(recs: list[dict]) -> str:
@@ -119,7 +123,7 @@ def _fmt_args(call: dict | None) -> str:
 def build_report(questions: list[dict], main_recs: list[dict], s1_recs: list[dict], gui_path: Path) -> str:
     qs = {q["id"]: q for q in questions}
     all_main, all_s1 = main_recs, s1_recs
-    main_recs, main_prev = _split_by_model(all_main)
+    main_recs, main_prev = _split_by_model(all_main, with_tool=True)
     s1_recs, s1_prev = _split_by_model(all_s1)
     main = _latest(main_recs)
     main_model = main_recs[-1].get("requested_model", main_agent.MODEL) if main_recs else main_agent.MODEL
@@ -171,7 +175,9 @@ def build_report(questions: list[dict], main_recs: list[dict], s1_recs: list[dic
             q, s, fj = qs[r["id"]], r["score"], r.get("final_json") or {}
             exp = q["expected"]
             calls = r.get("tool_calls") or []
-            want = f"{exp['n_total']} / {exp['actual_power']}" if "n_total" in exp else "yönlendir / sor"
+            # Kapsam dışı sorularda da referans n_total olabilir (eval_set v2); beklenen davranış yönlendirmedir.
+            want = (f"{exp['n_total']} / {exp['actual_power']}" if exp["label"] == "chi2-contingency"
+                    else "yönlendir / sor")
             L.append(f"| {r['id']} | {exp['label']} | {fj.get('label', '—')} | {_fmt_args(calls[-1] if calls else None)} "
                      f"| {fj.get('n_total')} | {fj.get('actual_power')} | {want} | "
                      f"{'✔' if s['behavior_ok'] else '✘'} | {'⚠ evet' if s['agent_made_numbers'] else 'hayır'} |")
@@ -204,7 +210,8 @@ def build_report(questions: list[dict], main_recs: list[dict], s1_recs: list[dic
         ptok = sum(sum(r["usage"][k] for k in USAGE_KEYS) for r in prev)
         bad = [r["id"] for r in prev if not r["score"]["behavior_ok"]]
         L.append(f"### Önceki çalıştırma ({_resolved(prev)})\n")
-        L.append(f"`--model {req}` ile yapıldı; ana sonuç değildir, karşılaştırma için korunur.\n")
+        L.append(f"Çalıştırma: `{req}` (istenen model · araç); ana sonuç değildir, karşılaştırma için "
+                 "korunur.\n")
         L.append(f"- Etiket: {_pct(sum(s['label_ok'] for s in sc), len(sc))}")
         L.append(f"- Davranış: {_pct(sum(bool(s['behavior_ok']) for s in sc), len(sc))}"
                  + (f" (✘: {', '.join(bad)})" if bad else ""))

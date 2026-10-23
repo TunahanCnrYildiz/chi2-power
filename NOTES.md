@@ -108,17 +108,63 @@ aynı ham alan sözlüğünü buraya verir.
 - Değersiz bayrak (`--df` sonda) `INVALID_VALUE` döner.
 - Bu ayrıştırma hataları test/mode denetiminden önce yakalanır.
 
-**Süre (§0.1, 2 s sınırı)**
-- Alt süreç olarak sıcak çağrı 0.85–0.88 s (30 SPEC vektörü, `differential_report_spec.md`). Ölçüm: boş Python 0.03 s,
-  scipy.stats importuyla 0.85 s; sürenin neredeyse tamamı scipy.stats importu. Bütün testlerde her çağrı 2 s'nin altında.
-- **Soğuk başlangıç:** Bilgisayar açıldıktan ya da Python/scipy güncellendikten sonraki ilk çağrıda dosya
-  önbelleği boşken scipy.stats importu bir kez **10.7 s** ölçüldü (`-X importtime`). Bu, sonraki çağrılarda
-  tekrarlanmadı. Değerlendirme düzeneği soğuk diskte ilk çağrıyı yaparsa 2 s'yi aşabilir. Önlem olarak sınavdan
-  önce bir kez `gpower-clone --version` ya da bir hesap çalıştırmak yeterli.
+**Bonus modlar (§0.7)**
+
+Davranışları yayımlanmış yöntemden tanımlanıyor ve sözleşmenin açık vektörleriyle doğrulanıyor ([AJAN] etiketi).
+Bütün modlarda λ = w²·n_total ve güç = 1 − F(c; df, λ). Kökler a priori yoldaki Brent kök bulucuyla bulunuyor:
+göreli tolerans ≈ makine epsilonu; üst sınır ikiye katlanarak aranıyor.
+
+| Mod | Girdi | Çözülen | Çıktı | Açık vektör (1e-6) |
+|---|---|---|---|---|
+| `compromise` | `w, beta_alpha_ratio, n_total, df` | F(c; df, λ) − q·(1 − F₀(c; df)) = 0, c'de kesin artan | `ncp, critical_chi2, alpha, beta, power` | c = 7.6804954, α = β = 0.1747455, güç 0.8252545 ✔ |
+| `criterion` | `w, power, n_total, df` | 1 − F(c; df, λ) = güç, sonra α = 1 − F₀(c; df) | `ncp, critical_chi2, alpha` | c = 4.6618452, α = 0.4585253 ✔ |
+| `sensitivity` | `alpha, power, n_total, df` | 1 − F(c_α; df, λ) = güç, λ ≥ 0; w = √(λ / n_total) | `ncp, critical_chi2, w` | λ = 19.7801344, c = 11.0704977, w = 0.4447486 ✔ |
+
+Tasarım kararları:
+- **Doğrulama sırası:** df → w → (q ya da güç) → n_total. Sensitivity'de df → α → güç → n_total.
+- **G*Power mesajları korunuyor:** α ve güç aralığı, güç < α (`INCONSISTENT`), N aralığı, df.
+- **w kuralı:** Sözleşme gereği w > 0 isteniyor.
+- **q ≤ 0:** `Beta/alpha ratio must be greater than 0.` (`OUT_OF_RANGE`/`beta_alpha_ratio`; mesaj uydurma).
+- **Sensitivity'de güç = α:** λ = 0, yani w = 0 döner.
+- **Testler:** Açık vektörlerin yanında tanımın kendisiyle tutarlılık da testleniyor:
+  - sensitivity'nin w değeri post hoc'a verilince hedef güç geri geliyor;
+  - criterion'ın α değeri post hoc'a verilince hedef güç geri geliyor;
+  - compromise'da β/α = q.
+
+**Süre (§0.1, 2 s sınırı) ve import kısaltması**
+
+Motorun dağılım fonksiyonları `scipy.stats` yerine daha hafif `scipy.special` modülünden geliyor:
+
+| Gereken | Önce (`scipy.stats`) | Şimdi (`scipy.special`) |
+|---|---|---|
+| Merkezi χ² CDF | `chi2.cdf(x, df)` | `chdtr(df, x)` |
+| Merkezi χ² üst kuyruk | `chi2.sf(x, df)` | `chdtrc(df, x)` |
+| Kritik değer (1 − α quantile'ı) | `chi2.isf(α, df)` | `chdtri(df, α)` |
+| Merkezi olmayan χ² CDF | `ncx2.cdf(x, df, λ)` | `chndtr(x, df, λ)` |
+
+- **Doğruluk:** scipy 1.18.1'de bu fonksiyonlar scipy.stats ile **bit bit aynı** sonucu veriyor.
+  - `tests/test_import_speed.py` bunu df ∈ {1, 2, 2.5, 5, 30, 100}, 7 α, 6 x ve 5 λ değerinde `==` ile denetliyor.
+  - statsmodels raporu ve 894 vektörün CSV'si değişiklikten sonra yeniden üretildi; dosyalar hiç değişmedi.
+  - 30 SPEC vektörü ve açık vektörler aynı.
+  - scipy.stats artık yalnızca testlerde, karşılaştırma için kullanılıyor.
+- **Ölçülen süre** (alt süreç, 7 tekrarın medyanı / en büyüğü):
+
+| | Önce (scipy.stats) | Sonra (scipy.special) |
+|---|---|---|
+| `import gpower_clone.service` | 0.84 / 0.89 s | 0.44 / 0.44 s |
+| Tam a priori çağrı (G-001) | 0.85 / 0.86 s | 0.43 / 0.45 s |
+| 30 SPEC vektörü (differential), en yavaş | 0.88 s | 0.47 s |
+
+  Karşılaştırma için boş Python 0.03 s.
+- **Soğuk başlangıç.** Değişiklikten önce, bilgisayar açıldıktan ya da Python/scipy güncellendikten sonraki ilk
+  çağrıda (dosya önbelleği boşken) scipy.stats importu bir kez **10.7 s** ölçüldü (`-X importtime`). Bu süre
+  sonraki çağrılarda tekrarlanmadı. Bu soğuk durum bu ortamda yeniden üretilemediği için yeni modülle ölçülemedi.
+  Daha az modül yüklendiğinden soğuk süre de kısalmalı, ama bu doğrulanmadı. Düzenek soğuk diskte ilk çağrıyı
+  yaparsa önlem olarak önce bir kez `gpower-clone --version` çalıştırmak yeterli.
 
 ## Sonuçlar
 
-- pytest: **266 geçti, 1 atlandı** (`oracle/vectors.csv` henüz yok → `test_oracle_gate` atlanıyor)
+- pytest: **307 geçti, 1 atlandı** (`oracle/vectors.csv` henüz yok → `test_oracle_gate` atlanıyor)
 - **SPEC vektörleri** (`tests/reports/differential_report_spec.md`, §0.6 toleransı):
   - 30/30 vektör beklenen sonucu veriyor: 20 hesap, 7 G*Power hatası (mesaj, kod ve alan), 3 sözleşme farkı.
   - **KAPI: 13/14 = %92.86.** Payda yalnızca a priori `n_total` vektörlerinden oluşuyor; G-019 hariç tutuldu,
@@ -130,7 +176,7 @@ aynı ham alan sözlüğünü buraya verir.
   - χ² post hoc: güç 0.6235846.
   - İkisi de 1e-6 toleransla tutuyor.
   - Diğer 20 vektör (t2-indep, t-paired, anova-oneway, multireg-r2) `UNSUPPORTED`/`test` veriyor.
-  - Bonus modlar (compromise, criterion, sensitivity) Aşama 1'de `UNSUPPORTED`/`mode` veriyor; Aşama 2'de eklenecek.
+  - Bonus modlar (compromise, criterion, sensitivity) 1e-6 toleransla tutuyor.
 - **statsmodels** (`tests/reports/statsmodels_report.md`):
   - 594/594 a priori vektörde `n_total = ⌈N_sm⌉`.
   - 594/594 minimallik: güç(n_total) ≥ hedef ve güç(n_total − 1) < hedef.
@@ -207,11 +253,12 @@ Girdi şeması (alan adları CLI ile aynı):
 | Alan | Tip | Zorunlu | Açıklama (şemadaki metin) |
 |---|---|---|---|
 | `test` | string | evet | Test family; only chi2-contingency is supported |
-| `mode` | `"a-priori"` \| `"post-hoc"` | evet | a-priori: solve n_total; post-hoc: solve power |
+| `mode` | `a-priori` \| `post-hoc` \| `compromise` \| `criterion` \| `sensitivity` | evet | Which quantity to solve; fields per mode are listed in the tool description |
 | `w` | number | mod gereği | Effect size w > 0 (a-priori: >= 1e-6) |
 | `alpha` | number | mod gereği | Alpha, 1e-7..0.9999999 |
-| `power` | number | a priori | a-priori only: target power, 1e-7..0.9999999, >= alpha |
-| `n_total` | integer | post hoc | post-hoc only: total N, 2..2147483646 |
+| `power` | number | a priori, criterion, sensitivity | Target power, 1e-7..0.9999999, >= alpha |
+| `n_total` | integer | post hoc ve bonus modlar | Total N, integer 2..2147483646 |
+| `beta_alpha_ratio` | number | compromise | compromise only: beta/alpha ratio q > 0 |
 | `df` | integer | df ya da rows+cols | Degrees of freedom, integer >= 1; or give rows+cols |
 | `rows`, `cols` | integer | uzantı | Table rows/columns >= 2 (df computed by the engine) |
 
@@ -243,12 +290,12 @@ Hekimin Türkçe sorusu
        ├─ chi2-contingency ve confidence ≥ 0.75 → MCP ajanı
        ├─ bilinen ama desteklenmeyen aile (t2-indep, t-paired, anova-oneway, multireg-r2) → "desteklenmiyor, araştırmacıya danışın"
        └─ ambiguous / unsupported ya da confidence < 0.75 → "araştırmacıya sorun"
-  └─ MCP ajanı (claude -p --model claude-opus-5-5; tek araç mcp__gpower-clone__chi2_contingency_power)
+  └─ MCP ajanı (claude -p --model claude-opus-5-5; tek araç mcp__gpower-clone__power_analysis, test + mode ile)
        └─ gpower-clone MCP sunucusu → service.compute → engine (bütün sayılar buradan)
 ```
 
 - **Ajan hesap yapmaz.** Yerleşik araçların hepsi kapalı (`--tools ""`). Yalnızca gpower-clone MCP sunucusu
-  bağlanıyor (`--mcp-config` + `--strict-mcp-config`); izinli tek araç `--allowedTools mcp__gpower-clone__chi2_contingency_power`,
+  bağlanıyor (`--mcp-config` + `--strict-mcp-config`); izinli tek araç `--allowedTools mcp__gpower-clone__power_analysis` (sözleşme öncesi turlarda `chi2_contingency_power`),
   izin kipi `--permission-mode dontAsk` (izinsiz her şey reddedilir). `init` olayındaki araç listesi kayıtta
   saklanıyor ve gerçek çalıştırmalarda yalnızca bu aracı içeriyor.
 - **Tablo boyutundan df:** Hekim "3×3" der. Ajan bunu `rows = 3, cols = 3` olarak iletir; df = (r − 1)(c − 1)
@@ -321,10 +368,23 @@ dosyasına yazılır. Üçüncüsü raporu kayıtlardan yeniden üretir; GUI son
    - belirsiz soru → yalnızca "sor".
 7. **Kalibrasyon aralıkları:** 0.9–1.0, 0.75–0.9 (yönlendirme eşiği) ve < 0.75.
 8. **Açık model kimlikleri.** `opus` ve `haiku` takma adları CLI sürümüne göre farklı modellere çözülebildiği için ana ajanda ve Sistem 1'de varsayılan olarak açık kimlikler kullanılır: `claude-opus-5-5` ve `claude-haiku-5-5`. `--main-model` ve `--s1-model` ile değiştirilebilir. Raporda ana sonuç, en son çalıştırılan modelin kayıtlarıdır; önceki modellerin kayıtları silinmez ve "Önceki çalıştırma" alt bölümlerinde özetlenir.
+9. **Sözleşme v1.0.0 (§0.8) ile ajan.**
+   - Ajan, aracı `test = "chi2-contingency"` ve `mode` ile çağırıyor; alan adları sözleşmeninkiler.
+   - Post hoc'ta araç `power` döndürüyor. JSON satırındaki `actual_power`, bu değerle birebir karşılaştırılıyor.
+   - Kategori eşlemesinde ("orta etki" → w = 0,3) varsayımı açıkça söyleme kuralı prompt'a yazıldı.
+   - Rapor, ana ajan kayıtlarını model ve araç adına göre ayırıyor; eski araç adıyla yapılan turlar
+     "Önceki çalıştırma" altında kalıyor.
+10. **Araç çağrı kayıtları (`logs/agent_calls.jsonl`, §0.8).** Her araç çağrısı bir satır:
+    `{"ts","question","tool_input","tool_output","tokens_in","tokens_out"}`.
+    - stream-json, çağrı başına güvenilir token vermiyor: `assistant` olaylarındaki `usage` akış sırasındaki ara
+      değeri gösteriyor. Bu yüzden token'lar o sorunun `claude -p` oturumunun ölçülmüş toplamı
+      (`tokens_in` = girdi + önbellek yazma + önbellek okuma, `tokens_out` = çıktı).
+    - Bir oturumda birden çok araç çağrısı olursa toplam çağrılara eşit bölünüyor.
+    - Araç çağrılmayan sorular (Q07–Q10) satır üretmiyor. Yalnızca kurgusal sorular kullanılıyor.
 
 ### Sonuçlar
 
-Ölçüm 2026-10-18, abonelik girişiyle (Pro). İki tur yapıldı; ikisinin kaydı da
+Ölçüm 2026-10-18 ve 2026-10-23, abonelik girişiyle (Pro). Üç ana ajan turu yapıldı; hepsinin kaydı
 `tests/reports/agent/main_runs.jsonl` ve `system1_runs.jsonl` dosyalarında duruyor. Bu kayıtlarda araç adı,
 argümanlar, sonuç, son cevap, süre ve token var. Ayrıntılı rapor: [tests/reports/agent_report.md](tests/reports/agent_report.md).
 
@@ -335,22 +395,35 @@ argümanlar, sonuç, son cevap, süre ve token var. Ayrıntılı rapor: [tests/r
    CLI 2.1.211 Opus 5.5'i reddetti ("version 2.1.280 or newer is required"). Kullanıcının izniyle `claude update`
    çalıştırıldı ve CLI 2.1.302'ye güncellendi. Bu sürümde iki kimlik de kabul ediliyor; JSON çıktısındaki model
    alanında `claude-opus-5-5` ve `claude-haiku-5-5` görünüyor.
+3. **Tur 3 (ana sonuç, sözleşme v1.0.0):** Yalnızca ana ajan `claude-opus-5-5` ile yeniden çalıştırıldı. Değişenler:
+   - yeni araç `power_analysis` (`test` + `mode`) ve sözleşme alan adları;
+   - prompt'ta kategori varsayımını açıkça söyleme kuralı;
+   - araç çağrıları `logs/agent_calls.jsonl` dosyasına yazılıyor (6 satır: Q01–Q06'da birer çağrı).
 
-Toplam çağrı sayısı **140**: her turda 10 ana ajan ve 60 Sistem 1 çağrısı. Bunlara değerlendirmeye girmeyen
-6 doğrulama ve hata ayıklama çağrısı (biri CLI tarafından reddedildi) ekleniyor. Prompt ve puanlama iki turda aynı.
+   Sistem 1'in arayüzü değişmediği için Sistem 1 yeniden çalıştırılmadı; Tur 2 sonuçları geçerli.
+
+Toplam çağrı sayısı **150**: Tur 1–2'de 10 ana ajan + 60 Sistem 1 çağrısı, Tur 3'te 10 ana ajan çağrısı. Bunlara
+değerlendirmeye girmeyen 6 doğrulama ve hata ayıklama çağrısı ekleniyor; biri CLI tarafından reddedildi.
 
 **Ana ajan (MCP yolu)**
 
-| Ölçüt | Tur 2: claude-opus-5-5 | Tur 1: claude-opus-4-8 |
-|---|---|---|
-| Doğru seçim oranı (etiket, 10 soru) | **10/10** | 10/10 |
-| Doğru davranış | **10/10** | 9/10 (Q03) |
-| χ² sorularında parametre / N / güç (7 ondalık) | 6/6 / 6/6 / 6/6 | 6/6 / 6/6 / 5/6 |
-| "Ajan sayı üretti" bayrağı | 0 | 0 |
-| Token (10 soru, tüm modeller) | 50 811 | 47 126 |
-| Süre (duvar saati) | 124.0 s | 88.6 s |
+| Ölçüt | Tur 3: claude-opus-5-5, `power_analysis` | Tur 2: claude-opus-5-5 | Tur 1: claude-opus-4-8 |
+|---|---|---|---|
+| Doğru seçim oranı (etiket, 10 soru) | **10/10** | 10/10 | 10/10 |
+| Doğru davranış | **10/10** | 10/10 | 9/10 (Q03) |
+| χ² sorularında parametre / N / güç (7 ondalık) | 6/6 / 6/6 / 6/6 | 6/6 / 6/6 / 6/6 | 6/6 / 6/6 / 5/6 |
+| "Ajan sayı üretti" bayrağı | 0 | 0 | 0 |
+| Token (10 soru, tüm modeller) | 59 273 | 50 811 | 47 126 |
+| Süre (duvar saati) | 106.2 s | 124.0 s | 88.6 s |
 
-- **Araç erişimi.** İki turda da ajanın gördüğü tek araç `mcp__gpower-clone__chi2_contingency_power` oldu
+- **Tur 3 ayrıntıları.**
+  - Ajanın gördüğü tek araç `mcp__gpower-clone__power_analysis` oldu.
+  - Bütün χ² çağrıları `test = "chi2-contingency"`, doğru `mode`, `rows`/`cols` ve post hoc'ta `n_total` ile yapıldı.
+  - Q02'de (orta etki) ve Q04'te (büyük etki) ajan varsayımı açıkça yazdı. Örnek: "Orta düzey etki ifadesini
+    Cohen w = 0,3 olarak aldım."
+  - Token artışı (≈ +8 500) uzayan prompt'tan ve araç açıklamasından geliyor.
+
+- **Araç erişimi.** Tur 1–2'de ajanın gördüğü tek araç `mcp__gpower-clone__chi2_contingency_power` oldu
   (`init` olayından).
 - **Q03.** Tur 1'de Opus 4.8 JSON satırında `actual_power` alanını boş (`null`) bırakmıştı. Tur 2'de Opus 5.5 bu
   alanı araç sonucunun bütün basamaklarıyla doldurdu. Puanlama değiştirilmedi; iki sonuç da olduğu gibi raporlandı.
@@ -375,14 +448,14 @@ Toplam çağrı sayısı **140**: her turda 10 ana ajan ve 60 Sistem 1 çağrıs
   İngilizcede güven biraz fazlaydı.
 - **İki dil.** Tur 2'de Türkçe ile İngilizce arasında doğrulukta fark yok.
 
-**MCP ↔ GUI** (ana sonuç Tur 2; GUI ölçümleri `gui_results.json` ve `gui_overhead.json` dosyalarından okundu,
+**MCP ↔ GUI** (ana sonuç Tur 3; GUI ölçümleri `gui_results.json` ve `gui_overhead.json` dosyalarından okundu,
 değiştirilmedi; iki yolda da ana model Opus 5.5)
 
-| | MCP (claude-opus-5-5) | GUI (Opus 5.5) |
+| | MCP (claude-opus-5-5, Tur 3) | GUI (Opus 5.5) |
 |---|---|---|
-| Token (yalnızca soru pencereleri) | 50 811 | 2 978 621 (59×) |
-| Token (hazırlık ve kapanış dahil) | 50 811 | 3 746 372 (74×) |
-| Süre | 124.0 s | 129.8 s |
+| Token (yalnızca soru pencereleri) | 59 273 | 2 978 621 (50×) |
+| Token (hazırlık ve kapanış dahil) | 59 273 | 3 746 372 (63×) |
+| Süre | 106.2 s | 129.8 s |
 | Doğruluk | 10/10 | 10/10 |
 | Ekran görüntüsü | 0 | 16 |
 

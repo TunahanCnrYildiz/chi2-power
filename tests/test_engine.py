@@ -228,3 +228,34 @@ def test_df_from_table_codes(rows, cols, code, field):
     with pytest.raises(engine.InputError) as e:
         engine.df_from_table(rows, cols)
     assert (e.value.code, e.value.field) == (code, field)
+
+
+# ---------- Bonus modlar (SPEC §0.7): tanımın kendisiyle tutarlılık ----------
+
+@pytest.mark.parametrize("alpha,power,n,df", [(0.05, 0.95, 100, 5.0), (0.01, 0.8, 50, 1.0), (0.1, 0.5, 1000, 12.0)])
+def test_sensitivity_inverts_post_hoc(alpha, power, n, df):
+    r = engine.sensitivity(alpha=alpha, power=power, n=n, df=df)
+    back = engine.post_hoc(w=r.w, alpha=alpha, n=n, df=df)
+    assert back.actual_power == pytest.approx(power, abs=1e-12)
+    assert r.ncp == pytest.approx(r.w ** 2 * n, rel=1e-12)
+
+
+@pytest.mark.parametrize("w,power,n,df", [(0.3, 0.95, 100, 5.0), (0.2, 0.8, 300, 2.0), (0.5, 0.6, 40, 1.0)])
+def test_criterion_inverts_post_hoc(w, power, n, df):
+    r = engine.criterion(w=w, power=power, n=n, df=df)
+    assert engine.critical_value(r.alpha, df) == pytest.approx(r.critical, rel=1e-9)
+    back = engine.post_hoc(w=w, alpha=r.alpha, n=n, df=df)
+    assert back.actual_power == pytest.approx(power, abs=1e-10)
+
+
+@pytest.mark.parametrize("w,q,n,df", [(0.3, 1.0, 100, 5.0), (0.2, 4.0, 200, 3.0), (0.5, 0.25, 30, 1.0)])
+def test_compromise_ratio(w, q, n, df):
+    r = engine.compromise(w=w, ratio=q, n=n, df=df)
+    assert r.beta / r.alpha == pytest.approx(q, rel=1e-9)
+    assert r.power == pytest.approx(1 - r.beta, abs=1e-15)
+    assert r.ncp == pytest.approx(w * w * n)
+
+
+def test_sensitivity_power_equals_alpha_gives_zero_w():
+    r = engine.sensitivity(alpha=0.05, power=0.05, n=100, df=1.0)
+    assert r.w == pytest.approx(0.0, abs=1e-7)

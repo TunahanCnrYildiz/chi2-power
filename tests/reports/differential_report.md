@@ -4,7 +4,7 @@
 - Toplam vektör: **30** (20 hesap, 7 hata, 3 sözleşme gereği G*Power'dan farklı)
 - Tüm kontrolleri tutan vektör: **30/30**
 - Karşılaştırma (§0.6): tam sayılar tam; ondalıklar |fark| ≤ 1e-6 ya da göreli fark ≤ 1e-6.
-- Çağrı süresi (alt süreç, duvar saati): en yavaş **0.90 s** (G-028), ortalama 0.86 s; sınır 2 s (§0.1).
+- Çağrı süresi (alt süreç, duvar saati): en yavaş **0.46 s** (G-010), ortalama 0.44 s; sınır 2 s (§0.1).
 
 ## KAPI: N tam eşleşme oranı
 

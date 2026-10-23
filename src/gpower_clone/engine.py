@@ -11,7 +11,9 @@ import math
 from dataclasses import dataclass
 from typing import Callable
 
-from scipy.stats import chi2, ncx2
+# scipy.special (scipy.stats değil): soğuk başlangıçta import ~0.4 s daha kısa (§0.1, 2 s sınırı).
+# Bu sürümde scipy.stats'ın chi2/ncx2 fonksiyonlarıyla bit bit aynı sonuç verir (tests/test_import_speed.py).
+from scipy.special import chdtr, chdtrc, chdtri, chndtr
 
 
 ALPHA_MIN, ALPHA_MAX = 1e-7, 0.9999999
@@ -80,14 +82,14 @@ def ncx2_cdf(x: float, df: float, lam: float) -> float:
     if math.isinf(x):
         return 1.0
     if lam < 1e-100:
-        return float(chi2.cdf(x, df))
-    return float(ncx2.cdf(x, df, lam))
+        return float(chdtr(df, x))
+    return float(chndtr(x, df, lam))
 
 
 def critical_value(alpha: float, df: float) -> float:
     """Merkezi χ²(df) dağılımının (1 − α) quantile'ı."""
     # isf(α) = ppf(1 − α); isf küçük α'da 1 − α'nın yuvarlama kaybını önler.
-    return float(chi2.isf(alpha, df))
+    return float(chdtri(df, alpha))
 
 
 def power_at(w: float, n: float, critical: float, df: float) -> float:
@@ -288,3 +290,107 @@ def post_hoc(w: float, alpha: float, n: float, df: float, contract: bool = True)
         df=df,
         ncp=ncp,
     )
+
+
+# ---------- Bonus modlar (SPEC §0.7) ----------
+# Binary'de incelenmedi; yayımlanmış yöntemden tanımlanır ve sözleşmenin açık referans vektörleriyle
+# doğrulanır ([AJAN] etiketi). Bütün modlarda λ = w²·n_total ve güç = 1 − F(c; df, λ) (§4.3 – §4.4).
+# Kökler, a priori yoldaki Brent kök bulucuyla (göreli tolerans ≈ makine epsilonu) bulunur.
+
+MSG_RATIO = "Beta/alpha ratio must be greater than 0."  # tasarım kararı (G*Power mesajı bilinmiyor)
+
+
+@dataclass(frozen=True)
+class CompromiseResult:
+    ncp: float
+    critical: float
+    alpha: float
+    beta: float
+    power: float
+
+
+@dataclass(frozen=True)
+class CriterionResult:
+    ncp: float
+    critical: float
+    alpha: float
+
+
+@dataclass(frozen=True)
+class SensitivityResult:
+    ncp: float
+    critical: float
+    w: float
+
+
+def _check_w_positive(w: float) -> None:
+    if not w >= 0:
+        raise InputError(MSG_W_POST_HOC, OUT_OF_RANGE, "w")
+    if not w > 0:
+        raise InputError(MSG_W_CONTRACT, OUT_OF_RANGE, "w")
+
+
+def _expand_until(f: Callable[[float], float], start: float = 1.0) -> float:
+    """f(hi) ≥ 0 olana dek üst sınırı ikiye katlar (f artan)."""
+    hi = start
+    while f(hi) < 0:
+        hi *= 2.0
+        if math.isinf(hi):
+            raise NoSolution("Unable to bracket the solution (upper bound overflow).")
+    return hi
+
+
+def _alpha_of(c: float, df: float) -> float:
+    """α(c) = 1 − F₀(c; df) (merkezi χ²'nin üst kuyruğu)."""
+    return float(chdtrc(df, c))
+
+
+def sensitivity(alpha: float, power: float, n: float, df: float, contract: bool = True) -> SensitivityResult:
+    """α, güç, n_total, df verilir; 1 − F(c; df, λ) = güç olacak λ ≥ 0, sonra w = √(λ / n_total)."""
+    _check_df(df, contract)
+    _check_alpha(alpha)
+    _check_power(power, alpha)
+    n_total = _check_n(n, contract)
+    crit = critical_value(alpha, df)
+
+    def f(lam: float) -> float:  # λ'da artan; f(0) = α − güç ≤ 0
+        return (1.0 - ncx2_cdf(crit, df, lam)) - power
+
+    if f(0.0) >= 0:
+        lam = 0.0
+    else:
+        lam = brent(f, 0.0, _expand_until(f))
+    return SensitivityResult(ncp=lam, critical=crit, w=math.sqrt(lam / n_total))
+
+
+def criterion(w: float, power: float, n: float, df: float, contract: bool = True) -> CriterionResult:
+    """w, güç, n_total, df verilir; 1 − F(c; df, λ) = güç olacak c, sonra α = 1 − F₀(c; df)."""
+    _check_df(df, contract)
+    _check_w_positive(w)
+    if not POWER_MIN <= power <= POWER_MAX:
+        raise InputError(MSG_POWER_RANGE, OUT_OF_RANGE, "power")
+    n_total = _check_n(n, contract)
+    lam = w * w * n_total
+
+    def g(c: float) -> float:  # c'de artan: güç c büyüdükçe azalır
+        return power - (1.0 - ncx2_cdf(c, df, lam))
+
+    c = brent(g, 0.0, _expand_until(g))  # g(0) = güç − 1 < 0
+    return CriterionResult(ncp=lam, critical=c, alpha=_alpha_of(c, df))
+
+
+def compromise(w: float, ratio: float, n: float, df: float, contract: bool = True) -> CompromiseResult:
+    """w, q = β/α, n_total, df verilir; β(c) / α(c) = q olacak c (β(c) = F(c; df, λ), α(c) = 1 − F₀(c; df))."""
+    _check_df(df, contract)
+    _check_w_positive(w)
+    if not (math.isfinite(ratio) and ratio > 0):
+        raise InputError(MSG_RATIO, OUT_OF_RANGE, "beta_alpha_ratio")
+    n_total = _check_n(n, contract)
+    lam = w * w * n_total
+
+    def h(c: float) -> float:  # β − q·α: c'de kesin artan, h(0) = −q < 0, c → ∞'da 1
+        return ncx2_cdf(c, df, lam) - ratio * _alpha_of(c, df)
+
+    c = brent(h, 0.0, _expand_until(h))
+    beta = ncx2_cdf(c, df, lam)
+    return CompromiseResult(ncp=lam, critical=c, alpha=_alpha_of(c, df), beta=beta, power=1.0 - beta)

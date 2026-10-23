@@ -24,6 +24,9 @@ TEST = "chi2-contingency"
 MODES: dict[str, tuple[str, ...]] = {
     "a-priori": ("w", "alpha", "power", "df"),
     "post-hoc": ("w", "alpha", "n_total", "df"),
+    "compromise": ("w", "beta_alpha_ratio", "n_total", "df"),  # bonus (§0.7)
+    "criterion": ("w", "power", "n_total", "df"),               # bonus
+    "sensitivity": ("alpha", "power", "n_total", "df"),         # bonus
 }
 TABLE_FIELDS = ("rows", "cols")  # tek uzantı: df yerine tablo boyutu (§0.1)
 INTEGER_FIELDS = {"n_total", "df", "rows", "cols"}
@@ -102,10 +105,22 @@ def _ordered(mode: str, fields: Mapping[str, Any]) -> list[str]:
     return head + [f for f in order if f in fields]
 
 
-def _outputs(mode: str, r: engine.Result) -> dict:
+def _run(mode: str, v: dict[str, float]) -> dict:
+    """Motoru çağırır ve §0.1 çıktı alanlarını sözleşmenin sırasıyla döndürür."""
     if mode == "a-priori":
+        r = engine.a_priori(v["w"], v["alpha"], v["power"], v["df"])
         return {"ncp": r.ncp, "critical_chi2": r.critical, "n_total": r.n_total, "actual_power": r.actual_power}
-    return {"ncp": r.ncp, "critical_chi2": r.critical, "power": r.actual_power}
+    if mode == "post-hoc":
+        r = engine.post_hoc(v["w"], v["alpha"], v["n_total"], v["df"])
+        return {"ncp": r.ncp, "critical_chi2": r.critical, "power": r.actual_power}
+    if mode == "compromise":
+        c = engine.compromise(v["w"], v["beta_alpha_ratio"], v["n_total"], v["df"])
+        return {"ncp": c.ncp, "critical_chi2": c.critical, "alpha": c.alpha, "beta": c.beta, "power": c.power}
+    if mode == "criterion":
+        k = engine.criterion(v["w"], v["power"], v["n_total"], v["df"])
+        return {"ncp": k.ncp, "critical_chi2": k.critical, "alpha": k.alpha}
+    s = engine.sensitivity(v["alpha"], v["power"], v["n_total"], v["df"])
+    return {"ncp": s.ncp, "critical_chi2": s.critical, "w": s.w}
 
 
 def compute(args: Mapping[str, Any]) -> dict:
@@ -123,11 +138,7 @@ def compute(args: Mapping[str, Any]) -> dict:
                 raise ServiceError(f"Inconsistent parameters: df {values['df']:g} does not match "
                                    f"(rows - 1) * (cols - 1) = {df:g}", INCONSISTENT, "df")
             values["df"] = df
-        if mode == "a-priori":
-            r = engine.a_priori(values["w"], values["alpha"], values["power"], values["df"])
-        else:
-            r = engine.post_hoc(values["w"], values["alpha"], values["n_total"], values["df"])
-        return _outputs(mode, r)
+        return _run(mode, values)
     except (ServiceError, engine.InputError) as e:
         return error(str(e), e.code, e.field)
     except engine.NoSolution as e:

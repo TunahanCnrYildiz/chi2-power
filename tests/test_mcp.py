@@ -92,6 +92,12 @@ EXTRA = [
     {"test": "chi2-contingency", "mode": "posthoc", "w": 0.3},
     {"mode": "a-priori", "w": 0.3},
     {"test": "chi2-contingency"},
+    {"test": "chi2-contingency", "mode": "compromise", "w": 0.3, "beta_alpha_ratio": 2, "rows": 3, "cols": 3,
+     "n_total": 150},
+    {"test": "chi2-contingency", "mode": "compromise", "w": 0.3, "beta_alpha_ratio": 0, "n_total": 100, "df": 5},
+    {"test": "chi2-contingency", "mode": "criterion", "w": 0.3, "power": 0.95, "n_total": 100, "df": 5,
+     "alpha": 0.05},
+    {"test": "chi2-contingency", "mode": "sensitivity", "alpha": 0.05, "power": 0.04, "n_total": 100, "df": 5},
 ]
 
 
@@ -119,7 +125,9 @@ def test_stdio_end_to_end():
     tools, results = anyio.run(go)
     assert [t.name for t in tools] == [TOOL]
     schema = tools[0].input_schema
-    assert {"test", "mode", "w", "alpha", "power", "n_total", "df", "rows", "cols"} <= set(schema["properties"])
+    assert {"test", "mode", "w", "alpha", "power", "n_total", "df", "rows", "cols",
+            "beta_alpha_ratio"} == set(schema["properties"])
+    assert schema["properties"]["mode"]["enum"] == ["a-priori", "post-hoc", "compromise", "criterion", "sensitivity"]
     assert set(schema["required"]) == {"test", "mode"}
     assert all(p.get("description") for p in schema["properties"].values())
     for v, r in zip(vecs, results):
