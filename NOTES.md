@@ -108,6 +108,29 @@ aynı ham alan sözlüğünü buraya verir.
 - Değersiz bayrak (`--df` sonda) `INVALID_VALUE` döner.
 - Bu ayrıştırma hataları test/mode denetiminden önce yakalanır.
 
+**Bonus modlar (§0.7)**
+
+Davranışları yayımlanmış yöntemden tanımlanıyor ve sözleşmenin açık vektörleriyle doğrulanıyor ([AJAN] etiketi).
+Bütün modlarda λ = w²·n_total ve güç = 1 − F(c; df, λ). Kökler a priori yoldaki Brent kök bulucuyla bulunuyor:
+göreli tolerans ≈ makine epsilonu; üst sınır ikiye katlanarak aranıyor.
+
+| Mod | Girdi | Çözülen | Çıktı | Açık vektör (1e-6) |
+|---|---|---|---|---|
+| `compromise` | `w, beta_alpha_ratio, n_total, df` | F(c; df, λ) − q·(1 − F₀(c; df)) = 0, c'de kesin artan | `ncp, critical_chi2, alpha, beta, power` | c = 7.6804954, α = β = 0.1747455, güç 0.8252545 ✔ |
+| `criterion` | `w, power, n_total, df` | 1 − F(c; df, λ) = güç, sonra α = 1 − F₀(c; df) | `ncp, critical_chi2, alpha` | c = 4.6618452, α = 0.4585253 ✔ |
+| `sensitivity` | `alpha, power, n_total, df` | 1 − F(c_α; df, λ) = güç, λ ≥ 0; w = √(λ / n_total) | `ncp, critical_chi2, w` | λ = 19.7801344, c = 11.0704977, w = 0.4447486 ✔ |
+
+Tasarım kararları:
+- **Doğrulama sırası:** df → w → (q ya da güç) → n_total. Sensitivity'de df → α → güç → n_total.
+- **G*Power mesajları korunuyor:** α ve güç aralığı, güç < α (`INCONSISTENT`), N aralığı, df.
+- **w kuralı:** Sözleşme gereği w > 0 isteniyor.
+- **q ≤ 0:** `Beta/alpha ratio must be greater than 0.` (`OUT_OF_RANGE`/`beta_alpha_ratio`; mesaj uydurma).
+- **Sensitivity'de güç = α:** λ = 0, yani w = 0 döner.
+- **Testler:** Açık vektörlerin yanında tanımın kendisiyle tutarlılık da testleniyor:
+  - sensitivity'nin w değeri post hoc'a verilince hedef güç geri geliyor;
+  - criterion'ın α değeri post hoc'a verilince hedef güç geri geliyor;
+  - compromise'da β/α = q.
+
 **Süre (§0.1, 2 s sınırı)**
 - Alt süreç olarak sıcak çağrı 0.85–0.88 s (30 SPEC vektörü, `differential_report_spec.md`). Ölçüm: boş Python 0.03 s,
   scipy.stats importuyla 0.85 s; sürenin neredeyse tamamı scipy.stats importu. Bütün testlerde her çağrı 2 s'nin altında.
@@ -118,7 +141,7 @@ aynı ham alan sözlüğünü buraya verir.
 
 ## Sonuçlar
 
-- pytest: **266 geçti, 1 atlandı** (`oracle/vectors.csv` henüz yok → `test_oracle_gate` atlanıyor)
+- pytest: **292 geçti, 1 atlandı** (`oracle/vectors.csv` henüz yok → `test_oracle_gate` atlanıyor)
 - **SPEC vektörleri** (`tests/reports/differential_report_spec.md`, §0.6 toleransı):
   - 30/30 vektör beklenen sonucu veriyor: 20 hesap, 7 G*Power hatası (mesaj, kod ve alan), 3 sözleşme farkı.
   - **KAPI: 13/14 = %92.86.** Payda yalnızca a priori `n_total` vektörlerinden oluşuyor; G-019 hariç tutuldu,
@@ -130,7 +153,7 @@ aynı ham alan sözlüğünü buraya verir.
   - χ² post hoc: güç 0.6235846.
   - İkisi de 1e-6 toleransla tutuyor.
   - Diğer 20 vektör (t2-indep, t-paired, anova-oneway, multireg-r2) `UNSUPPORTED`/`test` veriyor.
-  - Bonus modlar (compromise, criterion, sensitivity) Aşama 1'de `UNSUPPORTED`/`mode` veriyor; Aşama 2'de eklenecek.
+  - Bonus modlar (compromise, criterion, sensitivity) 1e-6 toleransla tutuyor.
 - **statsmodels** (`tests/reports/statsmodels_report.md`):
   - 594/594 a priori vektörde `n_total = ⌈N_sm⌉`.
   - 594/594 minimallik: güç(n_total) ≥ hedef ve güç(n_total − 1) < hedef.
@@ -207,11 +230,12 @@ Girdi şeması (alan adları CLI ile aynı):
 | Alan | Tip | Zorunlu | Açıklama (şemadaki metin) |
 |---|---|---|---|
 | `test` | string | evet | Test family; only chi2-contingency is supported |
-| `mode` | `"a-priori"` \| `"post-hoc"` | evet | a-priori: solve n_total; post-hoc: solve power |
+| `mode` | `a-priori` \| `post-hoc` \| `compromise` \| `criterion` \| `sensitivity` | evet | Which quantity to solve; fields per mode are listed in the tool description |
 | `w` | number | mod gereği | Effect size w > 0 (a-priori: >= 1e-6) |
 | `alpha` | number | mod gereği | Alpha, 1e-7..0.9999999 |
-| `power` | number | a priori | a-priori only: target power, 1e-7..0.9999999, >= alpha |
-| `n_total` | integer | post hoc | post-hoc only: total N, 2..2147483646 |
+| `power` | number | a priori, criterion, sensitivity | Target power, 1e-7..0.9999999, >= alpha |
+| `n_total` | integer | post hoc ve bonus modlar | Total N, integer 2..2147483646 |
+| `beta_alpha_ratio` | number | compromise | compromise only: beta/alpha ratio q > 0 |
 | `df` | integer | df ya da rows+cols | Degrees of freedom, integer >= 1; or give rows+cols |
 | `rows`, `cols` | integer | uzantı | Table rows/columns >= 2 (df computed by the engine) |
 

@@ -48,17 +48,22 @@ server = _Server(
         "Power analysis (G*Power compatible), test chi2-contingency. "
         "a-priori: w, alpha, power, df -> ncp, critical_chi2, n_total, actual_power. "
         "post-hoc: w, alpha, n_total, df -> ncp, critical_chi2, power. "
+        "compromise: w, beta_alpha_ratio, n_total, df -> ncp, critical_chi2, alpha, beta, power. "
+        "criterion: w, power, n_total, df -> ncp, critical_chi2, alpha. "
+        "sensitivity: alpha, power, n_total, df -> ncp, critical_chi2, w. "
         "rows+cols may replace df. Other tests return code UNSUPPORTED. "
         "Errors: isError with {\"error\", \"code\", \"field\"}."
     ),
 )
 def power_analysis(
     test: Annotated[str, Field(description="Test family; only chi2-contingency is supported")],
-    mode: Annotated[Literal["a-priori", "post-hoc"], Field(description="a-priori: solve n_total; post-hoc: solve power")],
+    mode: Annotated[Literal["a-priori", "post-hoc", "compromise", "criterion", "sensitivity"],
+                    Field(description="Which quantity to solve; fields per mode are listed in the tool description")],
     w: Annotated[float | None, Field(description="Effect size w > 0 (a-priori: >= 1e-6)")] = None,
     alpha: Annotated[float | None, Field(description="Alpha, 1e-7..0.9999999")] = None,
-    power: Annotated[float | None, Field(description="a-priori only: target power, 1e-7..0.9999999, >= alpha")] = None,
-    n_total: Annotated[int | None, Field(description="post-hoc only: total N, 2..2147483646")] = None,
+    power: Annotated[float | None, Field(description="Target power, 1e-7..0.9999999, >= alpha")] = None,
+    n_total: Annotated[int | None, Field(description="Total N, integer 2..2147483646")] = None,
+    beta_alpha_ratio: Annotated[float | None, Field(description="compromise only: beta/alpha ratio q > 0")] = None,
     df: Annotated[int | None, Field(description="Degrees of freedom, integer >= 1; or give rows+cols")] = None,
     rows: Annotated[int | None, Field(description="Table rows >= 2 (df computed by the engine)")] = None,
     cols: Annotated[int | None, Field(description="Table columns >= 2")] = None,
