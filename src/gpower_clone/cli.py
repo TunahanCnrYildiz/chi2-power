@@ -1,80 +1,55 @@
-"""gpower-clone komut satırı aracı — motorun üstünde ince katman.
+"""gpower-clone komut satırı aracı — ortak katmanın (service) üstünde ince katman.
 
-Argümanları ayrıştırır, metni sayıya çevirir, ortak katmanı (service) çağırır
-ve tek satır JSON basar. Hesap ve alan doğrulaması motordadır (engine.py).
+Sözleşme v1.0.0 (SPEC §0): `gpower-clone --test chi2-contingency --mode <MODE> --<alan> <değer> ...`
+Argümanları `--alan değer` / `--alan=değer` çiftlerine ayırır, ortak katmanı çağırır ve
+stdout'a tek satır JSON basar. Doğrulama ve hesap ortak katmanda ve motordadır.
 """
 
 from __future__ import annotations
 
-import argparse
-import math
 import sys
 
 from . import service
 
-TESTS = ("chi2-contingency",)
-FLAG = {"mode": "--mode", "w": "--w", "alpha": "--alpha", "power": "--power", "n": "--n", "df": "--df",
-        "rows": "--rows", "cols": "--cols"}
+
+class _ParseError(Exception):
+    def __init__(self, message: str, code: str, field: str | None):
+        super().__init__(message)
+        self.result = service.error(message, code, field)
 
 
-class CliError(Exception):
-    pass
-
-
-class _Parser(argparse.ArgumentParser):
-    def error(self, message):  # argparse'ın stderr'e yazıp çıkmasını engeller
-        raise CliError(message)
-
-
-def _build_parser() -> _Parser:
-    p = _Parser(prog="gpower-clone", allow_abbrev=False,
-                description="Chi-square contingency table power analysis (G*Power compatible).")
-    p.add_argument("--test")
-    p.add_argument("--mode")
-    p.add_argument("--w")
-    p.add_argument("--alpha")
-    p.add_argument("--power")
-    p.add_argument("--n", "--n-total", "--n_total", dest="n")
-    p.add_argument("--df")
-    p.add_argument("--rows")  # df yerine tablo boyutu: df = (rows − 1)(cols − 1), motorda
-    p.add_argument("--cols")
-    # Sözleşmenin genel parametreleri: kabul edilir, yok sayılır (SPEC §5.1, S-4).
-    p.add_argument("--tails")
-    p.add_argument("--ratio")
-    return p
-
-
-def _number(name: str, text: str) -> float:
-    try:
-        value = float(text)
-    except ValueError:
-        raise service.ServiceError(f"Invalid numeric value for {FLAG[name]}: {text!r}") from None
-    if not math.isfinite(value):
-        raise service.ServiceError(f"Invalid numeric value for {FLAG[name]}: {text!r} (must be finite)")
-    return value
-
-
-def _run(argv: list[str]) -> dict:
-    try:
-        args = _build_parser().parse_args(argv)
-    except CliError as e:
-        return service.error(str(e))
-    if args.test is None:
-        return service.error("Missing required parameter: --test")
-    if args.test not in TESTS:
-        return service.error(f"Unknown test: {args.test!r} (supported: {', '.join(TESTS)})")
-    params = {name: getattr(args, name) for name in ("w", "alpha", "power", "n", "df", "rows", "cols")}
-    return service.compute(args.mode, params, label=FLAG.__getitem__, convert=_number)
+def parse(argv: list[str]) -> dict[str, str]:
+    """`--alan değer` çiftleri → sıralı sözlük. Değer `-` ile başlayabilir (ör. `--w -0.1`)."""
+    args: dict[str, str] = {}
+    i = 0
+    while i < len(argv):
+        tok = argv[i]
+        if not tok.startswith("--") or tok == "--":
+            raise _ParseError(f"Unexpected argument: {tok}", service.UNKNOWN_PARAM, tok)
+        name, eq, value = tok[2:].partition("=")
+        if not eq:
+            if i + 1 >= len(argv) or argv[i + 1].startswith("--"):
+                raise _ParseError(f"Missing value for parameter: {name}", service.INVALID_VALUE, name)
+            value = argv[i + 1]
+            i += 1
+        if name in args:
+            raise _ParseError(f"Parameter given more than once: {name}", service.INVALID_VALUE, name)
+        args[name] = value
+        i += 1
+    return args
 
 
 def main(argv: list[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
-    try:
-        result = _run(argv)
-    except Exception as e:  # beklenmeyen durumlar da tek satır JSON olarak raporlanır
-        result, code = service.error(f"Internal error: {e}"), 2
+    if argv == ["--version"]:
+        result = service.version_info()
+        code = 0
     else:
-        code = 1 if service.is_error(result) else 0
+        try:
+            result = service.compute(parse(argv))
+        except _ParseError as e:
+            result = e.result
+        code = service.exit_code(result)
     sys.stdout.write(service.to_json(result) + "\n")
     return code

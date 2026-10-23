@@ -1,6 +1,7 @@
 # NOTES — gpower-clone (χ² olumsallık tablosu, temiz oda yazımı)
 
-Tek davranış kaynağı: `SPEC.md` (şu an v1.2). Başka kaynak açılmadı; tersine mühendislik aracı kullanılmadı.
+Tek davranış kaynağı: `SPEC.md` (şu an v2.0; §0 = eğitmenin arayüz sözleşmesi v1.0.0, öncelikli). Başka kaynak
+açılmadı; tersine mühendislik aracı kullanılmadı.
 
 ## Kurulum ve çalıştırma
 
@@ -11,18 +12,28 @@ python -m venv .venv
 
 ```bash
 gpower-clone --test chi2-contingency --mode a-priori --w 0.3 --alpha 0.05 --power 0.95 --df 1
-# {"n_total":145,"actual_power":0.9507851454132252,"critical":3.8414588206941285,"df":1,"ncp":13.049999999999999}
-python -m gpower_clone --test chi2-contingency --mode post-hoc --w 0.3 --alpha 0.05 --n 100 --df 1
+# {"ncp":13.049999999999999,"critical_chi2":3.8414588206941285,"n_total":145,"actual_power":0.9507851454132252}
+gpower-clone --test chi2-contingency --mode post-hoc --w 0.3 --alpha 0.05 --n_total 100 --df 1
+# {"ncp":9.0,"critical_chi2":3.8414588206941285,"power":0.850838768327056}
+gpower-clone --version
+# {"contract_version":"1.0.0","name":"chi2-power","engine":"Python 3.14.6, scipy 1.18.1"}
 ```
 
 Testler ve raporlar:
 
 ```bash
-.venv/Scripts/python -m pytest -q                                  # kabul + birim + CLI + düzenek testleri
-.venv/Scripts/python tests/differential.py # oracle/vectors.csv → tests/reports/differential_report.md
+.venv/Scripts/python -m pytest -q
+.venv/Scripts/python tests/differential.py
 .venv/Scripts/python tests/differential.py --csv tests/fixtures/spec_vectors.csv --report tests/reports/differential_report_spec.md
-.venv/Scripts/python tests/statsmodels_vectors.py                   # tests/reports/statsmodels_{report.md,vectors.csv}
+.venv/Scripts/python tests/statsmodels_vectors.py
 ```
+
+- `pytest -q`: kabul, sözleşme, birim, CLI, MCP ve düzenek testlerini çalıştırır.
+- `differential.py` (bağımsız): `oracle/vectors.csv` ile karşılaştırır, raporu `tests/reports/differential_report.md`
+  dosyasına yazar.
+- `differential.py --csv …`: aynı karşılaştırmayı SPEC vektörleriyle yapar.
+- `statsmodels_vectors.py`: raporu `tests/reports/statsmodels_report.md`, vektörleri `statsmodels_vectors.csv`
+  dosyasına yazar.
 
 `differential.py` çıkış kodu: KAPI geçerse 0, geçmezse 1, CSV yoksa 2. `--cmd "gpower-clone"` ile başka bir komut denenebilir.
 
@@ -30,49 +41,130 @@ Testler ve raporlar:
 
 | Dosya | Görev |
 |---|---|
-| `src/gpower_clone/engine.py` | Tüm hesap ve alan doğrulaması: §2.1 sırası, §2.2 mesajları, §4.1–4.4 formülleri (scipy), §4.5 aralık kurma, Brent, yuvarlama |
-| `src/gpower_clone/service.py` | Ortak katman: mod adı, zorunlu parametre, motor çağrısı, çıktı sözlüğü (alan sırası, df biçimi), `{"error": …}`, JSON metni |
-| `src/gpower_clone/cli.py` | İnce katman: argparse → metin → float → `service.compute` → tek satır JSON |
-| `src/gpower_clone/mcp_server.py` | MCP sunucusu (stdio): tek araç, `service.compute`'u çağırır; sayı işleyen kodu yok |
-| `tests/test_acceptance.py` | SPEC §6 Gherkin; her vektör ayrı test (15 a priori, 8 post hoc, 7 hata + sıra, yuvarlama örnekleri) |
-| `tests/test_engine.py`, `tests/test_cli.py` | §4.5 adımları (x dizisi 50.5, 24.75, …), sınırlar, eş adlar, alt süreç (`python -m`, console script) |
-| `tests/differential.py` | `oracle/vectors.csv` ↔ CLI (gerçek alt süreç), ekran basamağında karşılaştırma, uyum raporu |
+| `src/gpower_clone/engine.py` | Hesap ve alan kuralları (§2.1 sırası, §2.2 mesajları, §0.5 sözleşme aralıkları), §4 formülleri (scipy), §4.5 N araması |
+| `src/gpower_clone/service.py` | Ortak katman (sözleşme §0): alan kümesi, doğrulama sırası, tür denetimi, hata kodları, çıktı alanları, sürüm |
+| `src/gpower_clone/cli.py` | İnce katman: `--alan değer` ayrıştırma → `service.compute` → tek satır JSON, çıkış kodu |
+| `src/gpower_clone/mcp_server.py` | MCP sunucusu (stdio): tek araç `power_analysis`, ham argümanları `service.compute`'a verir |
+| `tests/test_contract.py` | Sözleşme v1.0.0: açık vektörler, sürüm, hata kodu/alan/çıkış kodu, aralıklar, süre |
+| `tests/test_acceptance.py` | SPEC §6 Gherkin (sözleşme alan adlarıyla, 1e-6 tolerans); G-019/G-023/G-025 sözleşme hatası |
+| `tests/test_engine.py`, `tests/test_cli.py` | §4.5 adımları, sınırlar, kod/alan, rows/cols uzantısı, alt süreç (`python -m`, console script) |
+| `tests/differential.py` | `oracle/vectors.csv` ↔ CLI (gerçek alt süreç), §0.6 toleransı, sözleşme farkları ayrı, süre ölçümü |
 | `tests/fixtures/spec_vectors.csv` | SPEC §6'daki 30 vektörün CSV biçimi (düzeneği kâhin gelmeden sınamak için) |
-| `tests/statsmodels_vectors.py` | statsmodels `GofChisquarePower` ile 894 vektör (594 a priori, 300 post hoc) |
-| `tests/test_statsmodels.py` | Aynı 894 vektörlük ızgara pytest regresyon testi olarak |
-| `tests/test_mcp.py` | MCP ↔ CLI birebir eşitlik (30 vektör), stdio uçtan uca, ince adaptör kontrolü |
-| `src/gpower_clone/agent/` | AI ajanı: Sistem 1, MCP ajanı, puanlama, değerlendirme, GUI karşılaştırması |
-| `tests/test_agent.py` | Ajan katmanı (sahte çalıştırıcıyla): kilitli komut, akış ayrıştırma, puanlama, yönlendirme |
-| `tests/reports/` | Üretilen uyum raporları (SPEC vektörleri, statsmodels) |
+| `tests/fixtures/public_vectors.jsonl` | Sözleşmenin 25 açık referans vektörü (eğitmen) |
+| `tests/statsmodels_vectors.py`, `tests/test_statsmodels.py` | statsmodels `GofChisquarePower` ile 894 vektör |
+| `tests/test_mcp.py` | MCP ↔ CLI birebir aynı metin (25 açık + 30 SPEC + 11 ek vektör), stdio uçtan uca, ince adaptör |
+| `src/gpower_clone/agent/`, `tests/test_agent.py` | AI ajanı (Sistem 1, MCP ajanı, puanlama, değerlendirme, GUI karşılaştırması) |
+| `tests/reports/` | Üretilen uyum raporları |
+
+## Sözleşme uyumu (arayüz sözleşmesi v1.0.0, SPEC §0)
+
+Hesap motoru değişmedi; değişen arayüzdür. Bütün arayüz kuralları `service.py` içinde tek yerde. CLI ve MCP
+aynı ham alan sözlüğünü buraya verir.
+
+| Konu | Uygulama |
+|---|---|
+| Alanlar (§0.1) | a priori `w, alpha, power, df`; post hoc `w, alpha, n_total, df`. Tek uzantı: `df` yerine `rows` + `cols` (df'yi `engine.df_from_table` hesaplar; ikisi birden verilip tutarsızsa `INCONSISTENT`/`df`). |
+| Ayrıştırma | `--alan değer` ya da `--alan=değer`. Değer `-` ile başlayabilir (`--w -0.1`). Ondalık ayırıcı noktadır; `0,3`, `nan`, `inf` → `INVALID_VALUE`. |
+| Çıktı (§0.2) | a priori `ncp, critical_chi2, n_total, actual_power`; post hoc `ncp, critical_chi2, power`. `df` yok. stdout'ta yalnızca tek satır JSON; uyarılar stderr'e. |
+| Sürüm (§0.3) | `gpower-clone --version` → `{"contract_version":"1.0.0","name":"chi2-power","engine":"Python …, scipy …"}`, çıkış 0. |
+| Hata (§0.4) | `{"error","code","field"}`. Çıkış kodu girdi hatasında **2**, iç hatada ve `NO_SOLUTION`'da **1**. `error` metni mümkünse G*Power mesajıdır (§2.2). |
+| Doğrulama sırası | test → mode → tanınmayan/ilgisiz alan → eksik alan → tür (df, rows, cols, w, alpha, power/n_total) → alan kuralları (§2.1 sırası, motorda). |
+| Aralıklar (§0.5) | `w > 0` (post hoc w = 0 → `OUT_OF_RANGE`), `n_total` tam sayı ≥ 2 (N = 1 → `OUT_OF_RANGE`), `df` tam sayı ≥ 1 (2.5 → `INVALID_VALUE`). G*Power'ın daha dar aralıkları (α, güç ∈ [1e-7, 0.9999999], a priori w ≥ 1e-6) ve mesajları korunur. |
+| χ² dışı aileler | `UNSUPPORTED`/`test`. 25 açık vektörün 20'si bu durumda; CLI ve MCP aynı hatayı verir. |
+| MCP (§0.8) | Tek araç `power_analysis`; `test` ve `mode` zorunlu, alan adları CLI ile aynı. Metin içeriği CLI'nin stdout satırıyla birebir aynı; hata `isError = true`. |
+
+**Kod eşlemesi**
+
+| Durum | `code` | `field` | Örnek `error` |
+|---|---|---|---|
+| test/mode eksik | `MISSING_PARAM` | `test`/`mode` | `Missing required parameter: mode` |
+| Moda gereken alan eksik | `MISSING_PARAM` | alan | `Missing required parameter: df (or rows and cols)` |
+| Bilinmeyen alan (`--n`, `--n-total`, `--tails`, `--ratio`, …) | `UNKNOWN_PARAM` | alan | `Unknown parameter: tails` |
+| Modla ilgisiz alan (post hoc'ta `--power`) | `UNKNOWN_PARAM` | alan | `Parameter power is not used in mode post-hoc` |
+| Sayı değil, NaN/∞, tam sayı alanında ondalık | `INVALID_VALUE` | alan | `Invalid value for df: 2.5 (must be an integer)` |
+| G*Power ya da sözleşme aralığı dışında | `OUT_OF_RANGE` | alan | G*Power mesajı (ör. `Degrees of Freedom must be greater or equal one.`) |
+| güç < α | `INCONSISTENT` | `power` | `Power must be greater than or equal to alpha.` |
+| df ile rows/cols tutarsız | `INCONSISTENT` | `df` | `Inconsistent parameters: df 2 does not match (rows - 1) * (cols - 1) = 4` |
+| Bilinmeyen test ya da mode (`posthoc` dahil) | `UNSUPPORTED` | `test`/`mode` | `Unsupported test: t2-indep (supported: chi2-contingency)` |
+| Aralık genişletmede taşma | `NO_SOLUTION` | null | `Unable to bracket the total sample size (upper bound overflow).` (çıkış 1) |
+| Beklenmeyen durum | `INTERNAL_ERROR` | null | çıkış 1 (kod adı tasarım kararı; tabloda yok) |
+
+**Sözleşmeyle kalkan ya da değişen eski kararlar**
+
+| Eski karar | Durum |
+|---|---|
+| Eş adlar `--n`, `--n-total`, `--n_total` (N için), `--mode posthoc` | **Kalktı.** N'nin tek adı `n_total`; diğerleri `UNKNOWN_PARAM`, `posthoc` `UNSUPPORTED`/`mode`. |
+| S-4: `--tails`, `--ratio` ve moda ait olmayan parametreler yok sayılır | **Kalktı.** Hepsi `UNKNOWN_PARAM`. |
+| S-3: çıktıda df, tamsayıysa `1`, değilse `2.5` | **Kalktı.** df artık çıktı değil. |
+| Hata `{"error"}`, çıkış kodu 1 (girdi) / 2 (iç) | **Değişti.** `{"error","code","field"}`, girdi 2, iç 1. |
+| Kesirli df kabul (G-019), post hoc w = 0 (G-023), N = 1 (G-025) | **Değişti.** Sözleşme gereği reddedilir. Motorda `contract=False` ile G*Power davranışı korunuyor ve testleniyor. |
+| A-3: kesirli N → `Total sample size must be an integer.` | Mesaj aynı, kod `INVALID_VALUE`/`n_total`. Tür aşamasında yakalanır. |
+| Ayrıştırma ve eksik parametre mesajları (S-2) | Yine tasarım kararı. Bayrak adıyla değil alan adıyla yazılıyor (`power`, `--power` değil), çünkü CLI ile MCP'nin metni birebir aynı olmalı. |
+
+**Yeni tasarım kararları:**
+- Tam sayı alanlarında tam sayı değerli ondalık yazımlar (`100.0`, `1e2`) kabul edilir.
+- Aynı alan iki kez verilirse `INVALID_VALUE` döner.
+- `--` ile başlamayan fazladan bir argüman `UNKNOWN_PARAM` döner (alan: o argüman).
+- Değersiz bayrak (`--df` sonda) `INVALID_VALUE` döner.
+- Bu ayrıştırma hataları test/mode denetiminden önce yakalanır.
+
+**Süre (§0.1, 2 s sınırı)**
+- Alt süreç olarak sıcak çağrı 0.85–0.88 s (30 SPEC vektörü, `differential_report_spec.md`). Ölçüm: boş Python 0.03 s,
+  scipy.stats importuyla 0.85 s; sürenin neredeyse tamamı scipy.stats importu. Bütün testlerde her çağrı 2 s'nin altında.
+- **Soğuk başlangıç:** Bilgisayar açıldıktan ya da Python/scipy güncellendikten sonraki ilk çağrıda dosya
+  önbelleği boşken scipy.stats importu bir kez **10.7 s** ölçüldü (`-X importtime`). Bu, sonraki çağrılarda
+  tekrarlanmadı. Değerlendirme düzeneği soğuk diskte ilk çağrıyı yaparsa 2 s'yi aşabilir. Önlem olarak sınavdan
+  önce bir kez `gpower-clone --version` ya da bir hesap çalıştırmak yeterli.
 
 ## Sonuçlar
 
-- pytest (temiz oda klasöründe): **186 geçti, 1 atlandı**. Atlanan test `test_oracle_gate`; çünkü `oracle/vectors.csv` o klasörde yoktu.
-  Birleştirilmiş repoda kâhin CSV'si bulunduğu için o test de çalışıyor: **187 geçti, 0 atlandı**.
-- SPEC vektörleri üzerinde diferansiyel rapor (`tests/reports/differential_report_spec.md`): 30/30 vektör tüm alanlarda tutuyor.
-  **KAPI: 22/23 = %95.65** (G-013 doğrulanamayan sayıldığında); doğrulanabilirler üzerinde %100. Eşik %90 → GEÇTİ.
-  Bu oran SPEC'teki tablodan türetilmiştir. Gerçek kâhin CSV'siyle üretilen rapor `tests/reports/differential_report.md` dosyasında: 30/30 vektör tutuyor, KAPI **%93.33**. Oranın farklı olması paydadan kaynaklanıyor: o raporda yalnızca a priori `n_total` alanı sayılıyor.
-- statsmodels (`tests/reports/statsmodels_report.md`): 594/594 a priori vektörde `n_total = ⌈N_sm⌉`; 594/594 minimallik
-  (güç(n_total) ≥ hedef, güç(n_total − 1) < hedef); 300/300 post hoc güç 7 ondalıkta eşit (en büyük fark 4.4e-16).
-  R `pwr` makinede kurulu olmadığı için kullanılmadı.
+- pytest: **266 geçti, 1 atlandı** (`oracle/vectors.csv` henüz yok → `test_oracle_gate` atlanıyor)
+- **SPEC vektörleri** (`tests/reports/differential_report_spec.md`, §0.6 toleransı):
+  - 30/30 vektör beklenen sonucu veriyor: 20 hesap, 7 G*Power hatası (mesaj, kod ve alan), 3 sözleşme farkı.
+  - **KAPI: 13/14 = %92.86.** Payda yalnızca a priori `n_total` vektörlerinden oluşuyor; G-019 hariç tutuldu,
+    G-013 doğrulanamayan sayıldı. Doğrulanabilir vektörlerde oran %100; eşik %90 → GEÇTİ.
+  - KAPI'nin paydası küçüldü (eski 23), çünkü post hoc'ta `n_total` artık çıktı değil.
+  - Kâhin CSV'si gelince aynı betik onunla tekrar çalıştırılmalı.
+- **Açık referans vektörleri** (`tests/fixtures/public_vectors.jsonl`):
+  - χ² a priori: N = 220, güç 0.9502155.
+  - χ² post hoc: güç 0.6235846.
+  - İkisi de 1e-6 toleransla tutuyor.
+  - Diğer 20 vektör (t2-indep, t-paired, anova-oneway, multireg-r2) `UNSUPPORTED`/`test` veriyor.
+  - Bonus modlar (compromise, criterion, sensitivity) Aşama 1'de `UNSUPPORTED`/`mode` veriyor; Aşama 2'de eklenecek.
+- **statsmodels** (`tests/reports/statsmodels_report.md`):
+  - 594/594 a priori vektörde `n_total = ⌈N_sm⌉`.
+  - 594/594 minimallik: güç(n_total) ≥ hedef ve güç(n_total − 1) < hedef.
+  - 300/300 post hoc güç 7 ondalıkta eşit.
+  - R `pwr` makinede kurulu olmadığı için kullanılmadı.
 
 ### Kesirli N ↔ tamsayı N ilişkisi (SPEC §4.5/4)
 
-statsmodels ve gpower-clone aynı sürekli denklemi (güç(w, α, N) = hedef) çözer. statsmodels kökü kesirli döndürür;
-gpower-clone kökü 10 ondalığa yuvarlayıp (⌊N·10¹⁰ + 0.5⌋/10¹⁰) yukarı yuvarlar; sonuç aralığın alt ucundan
-küçükse alt uca çeker (§4.5/5). Güç N'de
-arttığından bu, hedefe ulaşan en küçük tamsayıdır ve ⌈N_sm⌉'e eşittir. Ayrılık yalnızca kök bir tamsayıya çok
-yakınsa olabilir: kesir < 5·10⁻¹¹ ise G*Power kuralı aşağı yuvarlar (104.00000000003 → 104), ayrıca iki çözücünün
-toleransı farklıdır. Izgarada kesirli kökler arasındaki en büyük fark 2.5·10⁻⁶ (göreli 2.5·10⁻⁷); kökteki artık
-gpower-clone'da 5.6·10⁻¹⁶ (v1.2 durma ölçütüyle; önce 1.5·10⁻¹²), statsmodels'te 8.5·10⁻⁸. Yani fark statsmodels çözücüsünün gevşek toleransından geliyor.
-Hiçbir kök bir tamsayıya 10⁻⁶'dan yakın değildi, bu yüzden bu ızgarada kural farkı ortaya çıkmadı.
+statsmodels ve gpower-clone aynı sürekli denklemi (güç(w, α, N) = hedef) çözer. statsmodels kökü kesirli döndürür.
+gpower-clone ise kökü 10 ondalığa yuvarlar (⌊N·10¹⁰ + 0.5⌋/10¹⁰), sonra yukarı yuvarlar; sonuç aralığın alt
+ucundan küçükse alt uca çeker (§4.5/5). Güç N'de arttığından bu, hedefe ulaşan en küçük tamsayıdır ve ⌈N_sm⌉'e eşittir.
+
+İki sonuç ancak kök bir tamsayıya çok yakınsa ayrılabilir. İki sebebi var:
+- Kesir 5·10⁻¹¹'den küçükse G*Power kuralı aşağı yuvarlar (104.00000000003 → 104).
+- İki çözücünün toleransı farklıdır.
+
+Ölçümler:
+- Izgarada kesirli kökler arasındaki en büyük fark 2.5·10⁻⁶ (göreli 2.5·10⁻⁷).
+- Kökteki artık gpower-clone'da 5.6·10⁻¹⁶ (v1.2 durma ölçütüyle; önce 1.5·10⁻¹²), statsmodels'te 8.5·10⁻⁸.
+  Yani fark statsmodels çözücüsünün gevşek toleransından geliyor.
+- Hiçbir kök bir tamsayıya 10⁻⁶'dan yakın değildi; bu yüzden bu ızgarada kural farkı ortaya çıkmadı.
 
 ## MCP sunucusu (bonus katman)
 
-Motorun önünde ince bir adaptör. Akış: `mcp_server.chi2_contingency_power` → `service.compute` → `engine`.
-CLI de aynı `service.compute` ve `service.to_json` fonksiyonlarını kullanır. Bu yüzden iki yüzün çıktısı aynı
-koddan gelir; MCP modülünde scipy, `math` ya da sayı dönüştürme yoktur (`tests/test_mcp.py` bunu kaynak
-düzeyinde denetler). Resmi Python SDK `mcp` 2.3.0 (`mcp.server.mcpserver.MCPServer`; 2.x'te FastMCP bu adı aldı), stdio taşıma.
+Motorun önünde ince bir adaptör. Akış: `mcp_server` (`power_analysis`) → `service.compute` → `engine`.
+- CLI de aynı `service.compute` ve `service.to_json` fonksiyonlarını kullanır.
+- MCP modülünde scipy, `math`, sayı dönüştürme ya da ayrıştırma yoktur.
+- SDK: resmi Python `mcp` 2.3.0 (`mcp.server.mcpserver.MCPServer`); taşıma stdio.
+
+**Ham argüman tasarım kararı:** SDK, şemada olmayan alanları sessizce atar. Bu yüzden sunucu `call_tool` metodunu
+ezer ve araç argümanlarını hiç dönüştürmeden `service.compute`'a verir. Sonuçlar:
+- Şemada olmayan bir alan (ör. `tails`) CLI'deki gibi `UNKNOWN_PARAM` olur.
+- Sayı yerine metin (`"abc"`) CLI'deki gibi `INVALID_VALUE` olur.
+- Kayıtlı fonksiyon yalnızca girdi şemasını ve belgeyi üretir.
 
 ### Kurulum ve çalıştırma
 
@@ -108,50 +200,38 @@ Claude Desktop (`claude_desktop_config.json`) ya da proje kökündeki `.mcp.json
 }
 ```
 
-### Araç: `chi2_contingency_power`
+### Araç: `power_analysis`
 
-Açıklama: *Chi-square contingency table power analysis (G\*Power compatible). a-priori: give power, returns
-required n_total. post-hoc: give n, returns actual_power. Invalid input returns isError with {"error": message}.*
-
-Girdi şeması:
+Girdi şeması (alan adları CLI ile aynı):
 
 | Alan | Tip | Zorunlu | Açıklama (şemadaki metin) |
 |---|---|---|---|
-| `mode` | `"a-priori"` \| `"post-hoc"` | evet | a-priori: solve N; post-hoc: solve power |
-| `w` | number | evet | Effect size w; a-priori >= 1e-6, post-hoc >= 0 |
-| `alpha` | number | evet | Alpha, 1e-7..0.9999999 |
-| `df` | number | evet | Degrees of freedom, >= 1 (fractional allowed) |
-| `power` | number \| null | a priori'de | a-priori only: target power, 1e-7..0.9999999, >= alpha |
-| `n` | integer \| null | post hoc'ta | post-hoc only: total N, 1..2147483646 |
+| `test` | string | evet | Test family; only chi2-contingency is supported |
+| `mode` | `"a-priori"` \| `"post-hoc"` | evet | a-priori: solve n_total; post-hoc: solve power |
+| `w` | number | mod gereği | Effect size w > 0 (a-priori: >= 1e-6) |
+| `alpha` | number | mod gereği | Alpha, 1e-7..0.9999999 |
+| `power` | number | a priori | a-priori only: target power, 1e-7..0.9999999, >= alpha |
+| `n_total` | integer | post hoc | post-hoc only: total N, 2..2147483646 |
+| `df` | integer | df ya da rows+cols | Degrees of freedom, integer >= 1; or give rows+cols |
+| `rows`, `cols` | integer | uzantı | Table rows/columns >= 2 (df computed by the engine) |
 
-Çıktı şeması (`outputSchema`, `structuredContent`); alanlar CLI JSON'u ile aynı ve aynı sırada:
+Sonuç:
+- Tek metin içeriği, CLI'nin stdout satırıyla birebir aynı JSON'dur. `structuredContent` aynı sözlüktür.
+- Başarıda çıktı alanları CLI ile aynıdır (§0.2).
+- Hatada `isError = true` ve içerik `{"error","code","field"}` olur.
 
-| Alan | Tip | Anlamı |
-|---|---|---|
-| `n_total` | integer | Toplam N (a priori: hesaplanan; post hoc: girdi) |
-| `actual_power` | number | n_total'daki güç |
-| `critical` | number | Kritik χ² değeri |
-| `df` | number | Kullanılan df (tamsayıya eşitse JSON'da `1`, değilse `2.5`) |
-| `ncp` | number | λ = w²·n_total |
+### Test sonuçları (`tests/test_mcp.py`)
 
-Sonuç biçimi:
-- Başarı: `isError = false`; `structuredContent` = sonuç sözlüğü; tek metin içeriği = CLI'nin bastığı JSON satırı.
-- Girdi hatası: `isError = true`; `structuredContent` = `{"error": "<mesaj>"}`; metin = CLI'nin hata satırı.
-  §2.2 mesajları birebir aynıdır. Eksik parametre mesajı MCP'de alan adını kullanır
-  (`Missing required parameter: power`); CLI'de bayrak adını (`--power`). Mesaj metni S-2 gereği tasarım kararıdır.
-- Şemaya uymayan girdi (ör. `n = 100.5`, `mode = "sensitivity"`, sayı yerine metin) motora ulaşmaz. SDK argüman
-  doğrulaması bunu `isError = true` ile reddeder, mesaj pydantic'in mesajıdır ve `structuredContent` yoktur
-  (tasarım kararı). CLI'de aynı durumlar `{"error": …}` döndürür. `posthoc` eş adı MCP şemasında yok; enum yalnızca iki değer içerir.
-
-### Test sonuçları (`tests/test_mcp.py`, 34 test)
-
-- (a) Süreç içi: `spec_vectors.csv`'deki 30 vektörün tamamında (7 hata vektörü dahil) MCP sonucu, CLI alt süreç
-  çıktısıyla ayrıştırılmış JSON üzerinde birebir eşit. Hem `structuredContent` hem metin içeriği karşılaştırılıyor;
-  `isError` CLI çıkış koduna karşılık geliyor. Eksik parametre de ayrıca test ediliyor.
-- (b) Uçtan uca: sunucu `python -m gpower_clone.mcp_server` olarak stdio üzerinden gerçek `mcp.Client` ile
-  başlatılıyor. Araç listesi, girdi/çıktı şeması ve 6 vektör (2 a priori, 2 post hoc, 2 hata) CLI ile karşılaştırılıyor.
-- (c) İnce adaptör: `mcp_server.py` kaynağında scipy, `chi2.`, `ncx2`, `math`, `float(` ve motor fonksiyonları
-  geçmiyor; modül `service`'i içe aktarıyor. CLI de motoru doğrudan içe aktarmıyor.
+- (a) Süreç içi: metin içeriği her vektörde CLI alt süreç satırıyla **birebir aynı**; `isError` CLI çıkış koduna
+  karşılık geliyor. Kapsam:
+  - 25 açık referans vektörünün her biri; χ² dışındaki 20'si iki tarafta da `UNSUPPORTED` veriyor.
+  - 30 SPEC vektörü.
+  - 11 ek durum: rows/cols, tutarsız df, ilgisiz alan, bilinmeyen alan, metin değer, kesirli df, `posthoc`,
+    eksik test ve eksik mode.
+- (b) Uçtan uca: sunucu `python -m gpower_clone.mcp_server` olarak stdio üzerinden gerçek `mcp.Client` ile başlatılıyor.
+  Araç listesi (`power_analysis`) ve şema (zorunlu: `test`, `mode`) doğrulanıyor; 4 vektör CLI ile aynı.
+- (c) İnce adaptör: `mcp_server.py` kaynağında scipy, `chi2.`, `ncx2`, `math`, `float(`, `int(` ve motor
+  fonksiyonları geçmiyor. CLI de motoru doğrudan içe aktarmıyor.
 
 ## AI ajanı (bonus katman)
 
@@ -322,11 +402,13 @@ değiştirilmedi; iki yolda da ana model Opus 5.5)
 | 2. Brent durma ölçütü tol1 = 2·eps·\|b\| + 0.5·1e-10; 300 iterasyonda hata | **Değişti.** \|yarım aralık\| ≤ 1.1102230246251565e-16·\|b\| ya da f(b) = 0; 300 iterasyon dolarsa son tahmin b döner, hata yok. 894 statsmodels vektöründe hiçbir `n_total`/`actual_power` değişmedi (kesirli N en çok 2.5·10⁻¹¹ kaydı; `tests/test_statsmodels.py`). |
 | 3. Aralık genişletmede taşma → uydurma hata | **Kaldı** (SPEC §5.1 S-1 serbest bırakıyor); mesaj `Unable to bracket the total sample size (upper bound overflow).` Pratikte erişilemez. |
 | `round_n` içinde "en az 1" | **Değişti.** Alt sınır artık §4.5/5'teki alt uç kuralıyla uygulanıyor (alt ≥ 1). |
-| 9. `df` her zaman ondalık (`1.0`) | **Değişti** (S-3): tamsayıya eşitse `1`, değilse `2.5`. |
-| 7. Moda ait olmayan bilinen parametre yok sayılır | **Kaldı** (S-4); ayrıca `--tails` ve `--ratio` değer alarak kabul edilip yok sayılıyor. Gerçekten bilinmeyen parametre (ör. `--d`) hata verir. |
+| 9. `df` her zaman ondalık (`1.0`) | **Değişti** (S-3): tamsayıya eşitse `1`, değilse `2.5`. Sözleşme v1.0.0 ile kalktı (df çıktı değil). |
+| 7. Moda ait olmayan bilinen parametre yok sayılır | **Kaldı** (S-4); ayrıca `--tails` ve `--ratio` değer alarak kabul edilip yok sayılıyor. Gerçekten bilinmeyen parametre (ör. `--d`) hata verir. Sözleşme v1.0.0 ile kalktı (`UNKNOWN_PARAM`). |
 | Raporlar `reports/` | `tests/reports/` altına taşındı (`git mv`); `differential.py` varsayılan raporu `tests/reports/differential_report.md`. |
 
 ## Geçerli tasarım kararları (SPEC'te tanımlı değil)
+
+> Sözleşme v1.0.0 (SPEC §0) aşağıdaki maddelerden ayrıştırma, hata biçimi, çıkış kodları ve JSON biçimiyle ilgili olanların yerini aldı; geçerli hâlleri "Sözleşme uyumu" bölümünde.
 
 1. **Brent ayrıntıları.** Klasik zeroin (Brent 1973) yapısı; ters kuadratik/sekant adımı kabul ölçütleri ve en küçük
    adım için durma ölçütündeki tol1 = 1.11e-16·|b| kullanılır. tol1 yarım ulp mertebesinde olduğundan `b + adım == b`
@@ -353,7 +435,7 @@ değiştirilmedi; iki yolda da ana model Opus 5.5)
 
 ## SPEC'e dair sorular / açık noktalar
 
-- **A-1** `--w`, `--df`, `--n` adları CONTRACT.md ile doğrulanmadı; eş adlar (`--n-total`, `--n_total`, `--mode posthoc`) kabul ediliyor.
+- **A-1** Kapandı: alan adları sözleşmede tanımlı (§0.1). Eş adlar kaldırıldı (bkz. "Sözleşme uyumu").
 - **A-2** Sayılar tam hassasiyetle yazılıyor (yuvarlamasız double).
 - **A-3** Post hoc kesirli N → hata (karar 4). G*Power davranışı bilinmiyor.
 - **A-4** Kritik değer yöntemi: scipy `chi2.isf`; SPEC'teki 30 vektörün tüm `critical` değerleri ekran basamağında tuttu.
@@ -361,8 +443,8 @@ değiştirilmedi; iki yolda da ana model Opus 5.5)
   Tam değer doğrulanamaz; KAPI'de "doğrulanamayan" olarak raporlanıyor.
 - **S-1** Yanıtlandı (§5.1, §4.5/3, §4.5/5) ve uygulandı: kök bulucu 0 / son tahmin döndürür, uydurma hata kalktı.
 - **S-2** Yanıtlandı: mesaj metni ve sıra tasarım kararı (karar 5); §2.2 mesajları birebir korunuyor.
-- **S-3** Yanıtlandı ve uygulandı: tamsayı değerli df → `1`, kesirli → `2.5`.
-- **S-4** Yanıtlandı ve uygulandı: `--tails`, `--ratio` ve moda ait olmayan bilinen parametreler yok sayılır.
+- **S-3** v1.2'de uygulanmıştı; sözleşme v1.0.0 ile **kalktı**: df artık çıktı değil.
+- **S-4** v1.2'de yok sayma olarak uygulanmıştı; sözleşme v1.0.0 ile **kalktı**: hepsi `UNKNOWN_PARAM`.
 
 ## Uyuşmazlıklar
 

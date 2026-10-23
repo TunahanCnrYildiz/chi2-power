@@ -119,7 +119,8 @@ def test_noncentral_cdf_special_cases():
 
 
 def test_power_w_zero_equals_alpha():
-    r = engine.post_hoc(w=0.0, alpha=0.05, n=100, df=1.0)
+    """G*Power davranışı (contract=False): w = 0 → güç = α (G-023)."""
+    r = engine.post_hoc(w=0.0, alpha=0.05, n=100, df=1.0, contract=False)
     assert r.actual_power == pytest.approx(0.05, abs=1e-12)
     assert r.ncp == 0.0
 
@@ -188,3 +189,42 @@ def test_df_from_table_invalid(rows, cols, message):
     with pytest.raises(engine.InputError) as e:
         engine.df_from_table(rows, cols)
     assert str(e.value) == message
+
+
+
+# ---------- Sözleşme (SPEC §0.4 – §0.5): kod ve alan ----------
+
+@pytest.mark.parametrize("fn,kwargs,code,field", [
+    ("a_priori", dict(w=0.3, alpha=0.05, power=0.8, df=0.0), "OUT_OF_RANGE", "df"),
+    ("a_priori", dict(w=0.3, alpha=0.05, power=0.8, df=2.5), "INVALID_VALUE", "df"),
+    ("a_priori", dict(w=0.0, alpha=0.05, power=0.8, df=1.0), "OUT_OF_RANGE", "w"),
+    ("a_priori", dict(w=0.3, alpha=0.0, power=0.8, df=1.0), "OUT_OF_RANGE", "alpha"),
+    ("a_priori", dict(w=0.3, alpha=0.05, power=1.0, df=1.0), "OUT_OF_RANGE", "power"),
+    ("a_priori", dict(w=0.3, alpha=0.05, power=0.04, df=1.0), "INCONSISTENT", "power"),
+    ("post_hoc", dict(w=0.0, alpha=0.05, n=100, df=1.0), "OUT_OF_RANGE", "w"),
+    ("post_hoc", dict(w=-0.1, alpha=0.05, n=100, df=1.0), "OUT_OF_RANGE", "w"),
+    ("post_hoc", dict(w=0.3, alpha=0.05, n=1, df=1.0), "OUT_OF_RANGE", "n_total"),
+    ("post_hoc", dict(w=0.3, alpha=0.05, n=0, df=1.0), "OUT_OF_RANGE", "n_total"),
+    ("post_hoc", dict(w=0.3, alpha=0.05, n=100.5, df=1.0), "INVALID_VALUE", "n_total"),
+])
+def test_contract_error_codes(fn, kwargs, code, field):
+    with pytest.raises(engine.InputError) as e:
+        getattr(engine, fn)(**kwargs)
+    assert (e.value.code, e.value.field) == (code, field)
+
+
+def test_gpower_mode_keeps_gpower_ranges():
+    """contract=False: G-019 (kesirli df), G-023 (w = 0), G-025 (N = 1) G*Power gibi kabul edilir."""
+    assert engine.a_priori(w=0.3, alpha=0.05, power=0.8, df=2.5, contract=False).n_total == 115
+    assert engine.post_hoc(w=0.0, alpha=0.05, n=100, df=1.0, contract=False).ncp == 0.0
+    assert engine.post_hoc(w=0.3, alpha=0.05, n=1, df=1.0, contract=False).n_total == 1
+
+
+@pytest.mark.parametrize("rows,cols,code,field", [
+    (1, 3, "OUT_OF_RANGE", "rows"), (2.5, 3, "INVALID_VALUE", "rows"),
+    (3, 1, "OUT_OF_RANGE", "cols"), (3, 0.5, "INVALID_VALUE", "cols"),
+])
+def test_df_from_table_codes(rows, cols, code, field):
+    with pytest.raises(engine.InputError) as e:
+        engine.df_from_table(rows, cols)
+    assert (e.value.code, e.value.field) == (code, field)

@@ -68,7 +68,7 @@ def sm_solve_n(w, alpha, power, df):
 def a_priori_rows():
     for w, alpha, power, df in itertools.product(*A_PRIORI_GRID.values()):
         code, out = run_cli(["--test", "chi2-contingency", "--mode", "a-priori", "--w", repr(w),
-                             "--alpha", repr(alpha), "--power", repr(power), "--df", repr(float(df))])
+                             "--alpha", repr(alpha), "--power", repr(power), "--df", str(df)])
         assert code == 0, out
         n_sm = sm_solve_n(w, alpha, power, df)
         n_ours = engine.fractional_n(w, alpha, power, float(df))
@@ -97,14 +97,14 @@ def a_priori_rows():
 def post_hoc_rows():
     for w, alpha, n, df in itertools.product(*POST_HOC_GRID.values()):
         code, out = run_cli(["--test", "chi2-contingency", "--mode", "post-hoc", "--w", repr(w),
-                             "--alpha", repr(alpha), "--n", str(n), "--df", repr(float(df))])
+                             "--alpha", repr(alpha), "--n_total", str(n), "--df", str(df)])
         assert code == 0, out
         p_sm = sm_power(w, alpha, n, df)
-        diff = abs(out["actual_power"] - p_sm)
+        diff = abs(out["power"] - p_sm)
         yield dict(
             mode="post-hoc", w=w, alpha=alpha, power=None, n=n, df=df,
-            power_sm=p_sm, actual_power=out["actual_power"], abs_diff=diff,
-            status="eşleşme-7" if f"{p_sm:.7f}" == f"{out['actual_power']:.7f}" else "uyuşmazlık",
+            power_sm=p_sm, actual_power=out["power"], abs_diff=diff,
+            status="eşleşme-7" if f"{p_sm:.7f}" == f"{out['power']:.7f}" else "uyuşmazlık",
         )
 
 
