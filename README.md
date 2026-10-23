@@ -358,8 +358,13 @@ G\*Power'da: **Test family → χ² tests**, **Statistical test → Goodness-of-
 
 | Mod | Girdiler | Çıktılar |
 |---|---|---|
-| A priori (N hesapla) | w, α, güç, df | λ, kritik χ², df, toplam N, gerçek güç |
-| Post hoc (güç hesapla) | w, α, toplam N, df | λ, kritik χ², df, güç |
+| A priori (N hesapla) · zorunlu | w, α, güç, df | λ, kritik χ², toplam N, gerçek güç |
+| Post hoc (güç hesapla) · zorunlu | w, α, toplam N, df | λ, kritik χ², güç |
+| Compromise (α ve güç) · bonus | w, β/α oranı, toplam N, df | λ, kritik χ², α, β, güç |
+| Criterion (gerekli α) · bonus | w, güç, toplam N, df | λ, kritik χ², α |
+| Sensitivity (saptanabilir w) · bonus | α, güç, toplam N, df | λ, kritik χ², w |
+
+Bonus modlar binary'de incelenmedi; yayımlanmış yöntemle yazıldı ve sözleşmenin referans vektörleriyle doğrulandı (LEDGER L-033 `[AJAN]`).
 
 Yönergedeki "eşit olmayan grup oranı" sınır değeri bu teste uygulanamaz: grup yoktur, yalnızca toplam N vardır (SPEC §1). Kılavuzda bu test için bölüm ya da çalışılmış örnek bulunmuyor (LEDGER L-032). Bu yüzden kâhin tamamen G\*Power arayüzünden toplandı.
 
