@@ -371,6 +371,6 @@ def test_report_groups_previous_tool_runs(tmp_path):
     new = _main_rec("claude-opus-5-5", tokens=444)
     new["tool"] = TOOL
     md = evaluate.build_report(EVAL["questions"], [old, new], [], tmp_path / "gui_results.json")
-    primary, previous = md.split("Önceki çalıştırma")[0], md.split("Önceki çalıştırma")[1]
+    primary, previous = md.split("### Önceki çalıştırma")[0], md.split("### Önceki çalıştırma")[1]
     assert "444" in primary and "333" not in primary
     assert "333" in previous and "chi2_contingency_power" in previous

@@ -36,7 +36,7 @@ def _effective_df(args: dict) -> float | None:
 
 
 def _params_ok(exp: dict, args: dict) -> bool:
-    if args.get("mode") != exp["mode"]:
+    if args.get("test") != "chi2-contingency" or args.get("mode") != exp["mode"]:
         return False
     for k in ("w", "alpha"):
         if args.get(k) is None or float(args[k]) != float(exp[k]):
@@ -44,7 +44,7 @@ def _params_ok(exp: dict, args: dict) -> bool:
     if exp["mode"] == "a-priori":
         if args.get("power") is None or float(args["power"]) != float(exp["power"]):
             return False
-    elif args.get("n") is None or int(args["n"]) != int(exp["n"]):
+    elif args.get("n_total") is None or int(args["n_total"]) != int(exp["n"]):
         return False
     return _effective_df(args) == float(exp["df"])
 
@@ -54,8 +54,14 @@ def score_main(q: dict, run: dict) -> dict[str, Any]:
     fj = run.get("final_json") or {}
     calls = [c for c in run.get("tool_calls") or [] if c.get("name") == TOOL_FQN]
     ok_calls = [c for c in calls if not c.get("is_error") and isinstance(c.get("result"), dict)
-                and "n_total" in c["result"]]
+                and "error" not in c["result"]]
     last = ok_calls[-1] if ok_calls else None
+    # Sözleşme çıktısı (§0.2): a priori n_total + actual_power; post hoc yalnızca power (N girdidir).
+    tool_numbers = {}
+    if last is not None:
+        res, args = last["result"], last.get("arguments") or {}
+        tool_numbers = {"n_total": res.get("n_total", args.get("n_total")),
+                        "actual_power": res.get("actual_power", res.get("power"))}
     s: dict[str, Any] = {"label": fj.get("label"), "label_ok": fj.get("label") == exp["label"],
                          "json_line": bool(fj), "tool_calls": len(calls)}
 
@@ -65,7 +71,7 @@ def score_main(q: dict, run: dict) -> dict[str, Any]:
         v = fj.get(k)
         if v is None:
             continue
-        if last is None or v != last["result"].get(k):
+        if last is None or v != tool_numbers.get(k):
             made = True
     s["agent_made_numbers"] = made
     s["untraced_text_numbers"] = untraced_numbers(run.get("final_text", ""), q.get("question_tr", ""), calls)
