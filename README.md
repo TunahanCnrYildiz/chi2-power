@@ -1,9 +1,9 @@
 # chi2-power · χ² Olumsallık Tablosu Güç Analizi
 
 > **Yapılan katmanlar**
-> - ✅ **Temel katman (CLI):** tamamlandı; eğitmenin arayüz sözleşmesi v1.0.0 ile uyumlu. KAPI geçti: a priori N tam eşleşme %92.86; doğrulanabilir vektörlerde %100.
+> - ✅ **Temel katman (CLI):** tamamlandı; eğitmenin arayüz sözleşmesi v1.0.0 ile uyumlu. Zorunlu modlara ek olarak sözleşmenin bonus modları (compromise, criterion, sensitivity) da var. KAPI geçti: a priori N tam eşleşme %92.86; doğrulanabilir vektörlerde %100.
 > - ✅ **MCP sunucusu (+15):** tamamlandı. Sözleşmedeki tek araç `power_analysis`; aynı motoru çağıran ince bir adaptör. 25 açık referans vektöründe ve 30 SPEC vektöründe CLI ile birebir aynı çıktı ([aşağıda](#mcp-sunucusu-bonus-katman)).
-> - ✅ **AI ajanı (+10):** tamamlandı. Türkçe klinik soruyu MCP aracıyla yanıtlıyor. Doğru seçim 10/10. Ölçülmüş MCP ↔ GUI karşılaştırması: GUI yolu ≈ 59–74× token harcıyor. Jev yerine etiketle kısıtlı LLM kullanıldı ([aşağıda](#ai-ajanı-bonus-katman)).
+> - ✅ **AI ajanı (+10):** tamamlandı. Türkçe klinik soruyu MCP aracıyla yanıtlıyor. Doğru seçim 10/10. Ölçülmüş MCP ↔ GUI karşılaştırması: GUI yolu ≈ 50–63× daha fazla token harcıyor. Jev yerine etiketle kısıtlı LLM kullanıldı ([aşağıda](#ai-ajanı-bonus-katman)).
 
 G\*Power 3.1.9.7'nin **χ² testi, olumsallık tablosu** hesabının temiz oda yöntemiyle yeniden yazımıdır.
 `gpower-clone` G\*Power değildir ve G\*Power ekibiyle bir bağı yoktur (bkz. [Atıf](#atıf)).
@@ -70,6 +70,9 @@ gpower-clone --version
 |---|---|---|
 | `a-priori` | `w`, `alpha`, `power`, `df` | `ncp`, `critical_chi2`, `n_total`, `actual_power` |
 | `post-hoc` | `w`, `alpha`, `n_total`, `df` | `ncp`, `critical_chi2`, `power` |
+| `compromise` (bonus) | `w`, `beta_alpha_ratio`, `n_total`, `df` | `ncp`, `critical_chi2`, `alpha`, `beta`, `power` |
+| `criterion` (bonus) | `w`, `power`, `n_total`, `df` | `ncp`, `critical_chi2`, `alpha` |
+| `sensitivity` (bonus) | `alpha`, `power`, `n_total`, `df` | `ncp`, `critical_chi2`, `w` |
 
 | Alan | Tür | Geçerli aralık |
 |---|---|---|
@@ -108,8 +111,8 @@ gpower-clone --version
 
 | Ölçüm | Sonuç | Kaynak |
 |---|---|---|
-| pytest | **267 geçti, 0 atlandı** | `tests/` |
-| Sözleşmenin açık referans vektörleri (χ²) | a priori N = 220, güç 0.9502155; post hoc güç 0.6235846, **1e-6 toleransla tutuyor** | [`tests/fixtures/public_vectors.jsonl`](tests/fixtures/public_vectors.jsonl) |
+| pytest | **308 geçti, 0 atlandı** | `tests/` |
+| Sözleşmenin açık referans vektörleri (χ²) | **5/5 mod 1e-6 toleransla tutuyor:** a priori N = 220 (güç 0.9502155), post hoc güç 0.6235846, compromise α = β = 0.1747455, criterion α = 0.4585253, sensitivity w = 0.4447486 | [`tests/fixtures/public_vectors.jsonl`](tests/fixtures/public_vectors.jsonl) |
 | G\*Power arayüz vektörleri (kâhin) | **30/30** vektör beklenen sonucu veriyor: 20 hesap, 7 G\*Power hata mesajı, 3 sözleşme farkı | [`tests/reports/differential_report.md`](tests/reports/differential_report.md) |
 | **KAPI** (a priori N tam eşleşme, eşik %90) | **%92.86 → GEÇTİ.** Doğrulanabilir vektörlerde %100. | aynı rapor |
 | statsmodels ölçek testi | 894 vektör (594 a priori, 300 post hoc), **uyuşmazlık yok** | [`tests/reports/statsmodels_report.md`](tests/reports/statsmodels_report.md) |
@@ -168,16 +171,17 @@ Arayüz sözleşmesine göre tek araç vardır. Alan adları CLI ile aynıdır; 
 | Alan | Tip | Zorunlu | Açıklama |
 |---|---|---|---|
 | `test` | string | evet | `chi2-contingency`; diğer aileler `UNSUPPORTED` döner |
-| `mode` | `"a-priori"` \| `"post-hoc"` | evet | a priori: N'yi çöz · post hoc: gücü çöz |
+| `mode` | `"a-priori"` \| `"post-hoc"` \| `"compromise"` \| `"criterion"` \| `"sensitivity"` | evet | Hangi büyüklüğün hesaplanacağı (CLI tablosundaki gibi) |
 | `w` | number | ikisinde | Etki büyüklüğü w > 0 (a priori'de ≥ 1e-6) |
 | `alpha` | number | ikisinde | α, 1e-7 … 0.9999999 |
-| `power` | number | a priori'de | Hedef güç, 1e-7 … 0.9999999, ≥ α |
-| `n_total` | integer | post hoc'ta | Toplam N, 2 … 2147483646 |
+| `power` | number | a priori, criterion, sensitivity | Hedef güç, 1e-7 … 0.9999999, ≥ α |
+| `beta_alpha_ratio` | number | compromise | β/α oranı > 0 |
+| `n_total` | integer | a priori dışındaki modlarda | Toplam N, 2 … 2147483646 |
 | `df` | integer | ikisinde | Serbestlik derecesi ≥ 1 (ya da `rows` + `cols`) |
 | `rows`, `cols` | integer | — | Uzantı: tablo boyutu (≥ 2); df'yi motor hesaplar |
 
 **Çıktı.**
-- Başarıda metin içeriği, CLI'nin stdout JSON satırıyla **birebir aynıdır**: a priori'de `ncp`, `critical_chi2`, `n_total`, `actual_power`; post hoc'ta `ncp`, `critical_chi2`, `power`.
+- Başarıda metin içeriği, CLI'nin stdout JSON satırıyla **birebir aynıdır**; alanlar her mod için CLI tablosundaki gibidir.
 - Hatada `isError: true` olur ve içerik CLI ile aynı `{"error", "code", "field"}` JSON'udur.
 
 **Örnek çağrı ve sonuç**
@@ -208,13 +212,13 @@ Hekimin Türkçe sorusu
        ├─ chi2-contingency ve güven ≥ 0.75  → MCP ajanı
        ├─ bilinen ama desteklenmeyen aile    → "bu araç desteklemiyor, araştırmacıya danışın"
        └─ ambiguous / unsupported / güven < 0.75 → "araştırmacıya sorun"
-  └─ MCP ajanı  (claude-opus-5-5; tek araç: chi2_contingency_power)
+  └─ MCP ajanı  (claude-opus-5-5; tek araç: power_analysis)
        └─ MCP sunucusu → service.compute → engine
 ```
 
 ### Ajanın hesap yapmadığı nasıl güvence altında?
 
-- Ajanın yerleşik araçlarının hepsi kapalı. Yalnızca gpower-clone MCP sunucusu bağlı ve izinli tek araç `chi2_contingency_power`. Kayıttaki `init` olayı bunu her çalıştırmada doğruluyor.
+- Ajanın yerleşik araçlarının hepsi kapalı. Yalnızca gpower-clone MCP sunucusu bağlı ve izinli tek araç `power_analysis`. Kayıttaki `init` olayı bunu her çalıştırmada doğruluyor.
 - Hekim "3×3 tablo" der. Ajan bunu `rows = 3, cols = 3` olarak iletir; df = (r − 1)(c − 1) hesabını **motor** yapar (`engine.df_from_table`).
 - Cohen w eşlemesi (küçük 0,1 · orta 0,3 · büyük 0,5) bir hesap değil, bir sözlük eşlemesidir.
 - Değerlendirme, ajanın son JSON satırındaki her sayıyı aracın döndürdüğü sayıyla birebir karşılaştırır. Ölçülen 10 soruda "ajan sayı üretti" bayrağı **0 kez** kalktı.
@@ -246,7 +250,8 @@ Ayrıntılı rapor [`tests/reports/agent_report.md`](tests/reports/agent_report.
 
 | Kayıt | İçerik |
 |---|---|
-| [`tests/reports/agent/main_runs.jsonl`](tests/reports/agent/main_runs.jsonl) | Her soru için araç çağrıları (ad, argüman, sonuç), son cevap, token ve süre |
+| [`logs/agent_calls.jsonl`](logs/agent_calls.jsonl) | Sözleşmenin istediği biçimde her araç çağrısı: `ts`, `question`, `tool_input`, `tool_output`, `tokens_in`, `tokens_out` |
+| [`tests/reports/agent/main_runs.jsonl`](tests/reports/agent/main_runs.jsonl) | Her çalıştırmanın ayrıntısı: araç çağrıları, son cevap, token ve süre |
 | [`tests/reports/agent/system1_runs.jsonl`](tests/reports/agent/system1_runs.jsonl) | Sistem 1 çağrıları |
 | [`tests/reports/agent/gui/`](tests/reports/agent/gui/) | GUI yolunun ham kayıtları |
 
@@ -264,9 +269,9 @@ Aynı 10 soru iki yoldan da çözüldü; iki yolda da ana model **Opus 5.5**.
 | | MCP yolu | GUI yolu |
 |---|---|---|
 | Doğruluk | 10/10 | 10/10 |
-| Token (yalnızca soru pencereleri) | **50 811** | **2 978 621** (≈ 59×) |
-| Token (hazırlık ve kapanış dahil) | 50 811 | 3 746 372 (≈ 74×) |
-| Süre (soru pencereleri) | 124 s | 130 s |
+| Token (yalnızca soru pencereleri) | **59 273** | **2 978 621** (≈ 50×) |
+| Token (hazırlık ve kapanış dahil) | 59 273 | 3 746 372 (≈ 63×) |
+| Süre (soru pencereleri) | 106 s | 130 s |
 | Ekran görüntüsü | 0 | 16 (6 χ² sorusunda) |
 
 **Adalet notu.**
@@ -275,7 +280,7 @@ Aynı 10 soru iki yoldan da çözüldü; iki yolda da ana model **Opus 5.5**.
 - GUI yolu, kapsam dışı ve belirsiz 4 soruda (Q07–Q10) G\*Power'ı hiç kullanmadı.
 - Tam tablo ve yöntem: [`tests/reports/agent_report.md`](tests/reports/agent_report.md).
 
-**Sonuç.** Hesap aynı, doğruluk aynı. Ama ekran görüntüsüyle çalışan bir ajan, aynı soruyu metin tabanlı bir araçla çözen ajana göre yaklaşık 60–75 kat daha fazla token harcıyor. Bu, yönergedeki "her arayüz bir maliyet transferidir" tezinin bu çalışmadaki ölçülmüş karşılığı.
+**Sonuç.** Hesap aynı, doğruluk aynı. Ama ekran görüntüsüyle çalışan bir ajan, aynı soruyu metin tabanlı bir araçla çözen ajana göre yaklaşık 50–63 kat daha fazla token harcıyor. Bu, yönergedeki "her arayüz bir maliyet transferidir" tezinin bu çalışmadaki ölçülmüş karşılığı.
 
 ## Ajanın söktüğü şeyin DOĞRU olduğunu nasıl kanıtladık?
 
@@ -374,18 +379,19 @@ Yönergedeki "eşit olmayan grup oranı" sınır değeri bu teste uygulanamaz: g
 
 ## Demo
 
-▶️ **[Demo videosu (53 sn): `docs/demo.mp4`](docs/demo.mp4)**
+▶️ **[Demo videosu (58 sn): `docs/demo.mp4`](docs/demo.mp4)**
 
 Videoda sırasıyla şunlar var:
 1. A priori hesap ve aynı girdilerle G\*Power'ın ekranı (N = 145).
 2. Tablo boyutundan df ile hesap (3×3 → N = 133).
-3. Post hoc güç.
-4. Geçersiz girdi: G\*Power'ın mesajıyla birebir aynı hata ve sıfırdan farklı çıkış kodu.
-5. Uyum raporu (30/30, KAPI %93,33).
-6. Test paketi (187 test).
-7. Türkçe soruyu MCP aracıyla yanıtlayan AI ajanı.
+3. Post hoc güç (`--n_total`).
+4. Geçersiz girdi: G\*Power'ın mesajı, sözleşmedeki hata kodu (`INCONSISTENT`) ve çıkış kodu 2.
+5. Bonus mod (sensitivity) ve `--version` (sözleşme v1.0.0).
+6. Uyum raporu (30/30, KAPI %92,86).
+7. Test paketi (308 test).
+8. Türkçe soruyu MCP aracıyla yanıtlayan AI ajanı ("orta etki" varsayımını açıkça söylüyor).
 
-Video, bu komutların gerçek çalıştırma çıktılarından üretilmiş bir terminal kaydıdır. Test paketi (~2 dk) ve ajanın yanıtı (~15 sn) gibi bekleme süreleri kısaltılmıştır.
+Video, bu komutların gerçek çalıştırma çıktılarından üretilmiş bir terminal kaydıdır. Test paketi (~1,5 dk) ve ajanın yanıtı (~14 sn) gibi bekleme süreleri kısaltılmıştır.
 
 ## Atıf
 

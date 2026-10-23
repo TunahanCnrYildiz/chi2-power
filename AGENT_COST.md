@@ -26,7 +26,8 @@ Token sayıları her oturumun Claude Code kayıt dosyasındaki (`~/.claude/proje
 
 | Çalıştırma | Çağrı | Token |
 |---|---|---|
-| Ana ajan, Opus 5.5 (ana sonuç) | 10 | 50 811 |
+| Ana ajan, Opus 5.5, `power_analysis` aracıyla (ana sonuç; sözleşme sonrası) | 10 | 59 273 |
+| Ana ajan, Opus 5.5, eski araç adıyla (sözleşme öncesi) | 10 | 50 811 |
 | Ana ajan, Opus 4.8 (eski CLI'deki ilk çalıştırma) | 10 | 47 126 |
 | Sistem 1, Haiku 5.5 (ana sonuç) | 60 | 109 482 |
 | Sistem 1, Haiku 4.5 (ilk çalıştırma) | 60 | 175 959 |
@@ -122,3 +123,8 @@ Hiçbir turda bir vektör için sayı ayarı yapılmadı.
   - Sonuç: 94/94 test geçti, kâhinde 30/30 vektör tuttu, KAPI %93.33.
   - MCP sunucusu (bonus) yazım oturumunda eklendi ve birleştirildi: 128/128 test geçti, 30 vektörde CLI ile birebir aynı çıktı.
   - AI ajanı (bonus) eklendi ve ölçüldü (Opus 5.5 / Haiku 5.5): doğru seçim 10/10, Sistem 1 TR 30/30, EN 30/30. MCP ↔ GUI: 50 811 token'a karşı 2 978 621 token (hazırlık dahil 3 746 372). 187/187 test geçti.
+- **2026-10-23:** Eğitmen arayüz sözleşmesini (v1.0.0) yayımladı.
+  - SPEC v2.0'a sözleşme bölümü (§0) eklendi.
+  - Yazım oturumu arayüzü iki aşamada sözleşmeye uyarladı: önce zorunlu kısım (alan adları, hata kodları, çıkış kodları, `--version`, MCP `power_analysis`), sonra bonus kısım (compromise/criterion/sensitivity modları, `logs/agent_calls.jsonl`, daha hızlı import).
+  - Ajan yeni araçla yeniden ölçüldü: 10/10, 59 273 token.
+  - Sonuç: 308/308 test geçti; sözleşmenin 5 χ² referans vektörünün hepsi tuttu; KAPI %92.86 (doğrulanabilirlerde %100).
