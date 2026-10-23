@@ -158,3 +158,58 @@ def test_equals_syntax_and_rows_cols_extension():
 def test_stdout_only_json_on_success():
     rc, out, err, _ = run_cli(AP)
     assert rc == 0 and out.count("\n") == 1 and out.startswith("{")
+
+
+# ---------- Bonus modlar (§0.7) ----------
+
+BONUS = [v for v in PUBLIC if v["id"] in ("chi2-contingency/compromise", "chi2-contingency/criterion",
+                                          "chi2-contingency/sensitivity")]
+
+
+@pytest.mark.parametrize("vec", BONUS, ids=[v["id"] for v in BONUS])
+def test_public_bonus_vectors(vec):
+    code, out, _, dt = run_cli(to_argv(vec["input"]))
+    assert code == 0, out
+    got = json.loads(out)
+    assert list(got) == list(vec["expected"])  # §0.1 alan sırası
+    for k, want in vec["expected"].items():
+        assert close(got[k], want), (k, got[k], want)
+    assert dt < 2.0
+
+
+BONUS_ERRORS = [
+    ("compromise-missing-ratio", ["--test", "chi2-contingency", "--mode", "compromise", "--w", "0.3",
+                                  "--n_total", "100", "--df", "5"], "MISSING_PARAM", "beta_alpha_ratio"),
+    ("compromise-ratio-zero", ["--test", "chi2-contingency", "--mode", "compromise", "--w", "0.3",
+                               "--beta_alpha_ratio", "0", "--n_total", "100", "--df", "5"],
+     "OUT_OF_RANGE", "beta_alpha_ratio"),
+    ("compromise-alpha-irrelevant", ["--test", "chi2-contingency", "--mode", "compromise", "--w", "0.3",
+                                     "--beta_alpha_ratio", "1", "--n_total", "100", "--df", "5", "--alpha", "0.05"],
+     "UNKNOWN_PARAM", "alpha"),
+    ("criterion-w-zero", ["--test", "chi2-contingency", "--mode", "criterion", "--w", "0", "--power", "0.95",
+                          "--n_total", "100", "--df", "5"], "OUT_OF_RANGE", "w"),
+    ("criterion-power-range", ["--test", "chi2-contingency", "--mode", "criterion", "--w", "0.3", "--power", "1",
+                               "--n_total", "100", "--df", "5"], "OUT_OF_RANGE", "power"),
+    ("sensitivity-w-irrelevant", ["--test", "chi2-contingency", "--mode", "sensitivity", "--alpha", "0.05",
+                                  "--power", "0.95", "--n_total", "100", "--df", "5", "--w", "0.3"],
+     "UNKNOWN_PARAM", "w"),
+    ("sensitivity-power-lt-alpha", ["--test", "chi2-contingency", "--mode", "sensitivity", "--alpha", "0.05",
+                                    "--power", "0.04", "--n_total", "100", "--df", "5"], "INCONSISTENT", "power"),
+    ("sensitivity-n-one", ["--test", "chi2-contingency", "--mode", "sensitivity", "--alpha", "0.05",
+                           "--power", "0.95", "--n_total", "1", "--df", "5"], "OUT_OF_RANGE", "n_total"),
+]
+
+
+@pytest.mark.parametrize("vid,argv,code,field", BONUS_ERRORS, ids=[e[0] for e in BONUS_ERRORS])
+def test_bonus_errors(vid, argv, code, field):
+    rc, out, _, _ = run_cli(argv)
+    got = json.loads(out)
+    assert (got["code"], got["field"]) == (code, field), got
+    assert rc == 2
+
+
+def test_bonus_modes_with_rows_cols():
+    a = run_cli(to_argv(BONUS[1]["input"]))[1]
+    b = run_cli(["--test", "chi2-contingency", "--mode", "criterion", "--w", "0.3", "--power", "0.95",
+                 "--n_total", "100", "--rows", "2", "--cols", "6"])[1]
+    assert json.loads(a) == json.loads(b)
