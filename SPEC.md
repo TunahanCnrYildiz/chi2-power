@@ -4,9 +4,107 @@
 > Decompile çıktısı, adres ya da kod alıntısı içermez; yalnızca gözlenebilir davranış, algoritmanın özü ve kabul kriterleri.
 > Her kuralın sonunda dayandığı kanıt kaydı belirtilir: `(L-0xx)`. Kayıtlar inceleme oturumunun kanıt defterindedir; Oturum 2'nin onları görmesi gerekmez.
 
-- Sürüm: 1.2 · 2026-10-18 (v1.2: §4.5 kök bulucu davranışı netleşti, §5.1 yazım oturumu soruları yanıtlandı)
+- Sürüm: 2.0 · 2026-10-23 (v2.0: eğitmenin arayüz sözleşmesi v1.0.0 → §0, öncelikli; v1.2: §4.5 kök bulucu, §5.1 sorular)
 - Referans davranış: G\*Power 3.1.9.7 (Windows), "χ² tests → Goodness-of-fit tests: Contingency tables"
 - Beklenen değerlerin kaynağı (kâhin): `oracle/vectors.csv` (G\*Power arayüzü, ekran görüntülü). Bu belgedeki sayılar oradan alınmıştır; hiçbiri ajan tarafından üretilmemiştir.
+
+---
+
+## 0. Arayüz sözleşmesi v1.0.0 (ÖNCELİKLİ)
+
+> Eğitmen, yönergede boş kalan sözleşmeyi 2026-10-21'de yayımladı (sözleşme sürümü **1.0.0**). Bu bölüm **arayüzü** tanımlar ve aşağıdaki §2, §3, §5.1 ve §6 ile çeliştiği her yerde **bu bölüm geçerlidir**. Hesap davranışı (§4) değişmez.
+> Sözleşmenin χ² için verdiği açık referans vektörleri (a priori ve post hoc) mevcut hesapla zaten tutuyor (N = 220, güç 0.9502155; post hoc güç 0.6235846).
+> Açık referans vektörlerinin 25'i `tests/fixtures/public_vectors.jsonl` dosyasında: 5 aile × 5 mod; χ² dışındaki aileler kapsam dışıdır.
+
+### 0.1 Komut ve alanlar
+
+```
+gpower-clone --test chi2-contingency --mode <MODE> --<alan> <değer> ...
+```
+
+| Mod | Girdi alanları (birebir bu adlar) | Çıktı alanları (zorunlu) |
+|---|---|---|
+| `a-priori` | `w`, `alpha`, `power`, `df` | `ncp`, `critical_chi2`, `n_total`, `actual_power` |
+| `post-hoc` | `w`, `alpha`, `n_total`, `df` | `ncp`, `critical_chi2`, `power` |
+| `compromise` (bonus) | `w`, `beta_alpha_ratio`, `n_total`, `df` | `ncp`, `critical_chi2`, `alpha`, `beta`, `power` |
+| `criterion` (bonus) | `w`, `power`, `n_total`, `df` | `ncp`, `critical_chi2`, `alpha` |
+| `sensitivity` (bonus) | `alpha`, `power`, `n_total`, `df` | `ncp`, `critical_chi2`, `w` |
+
+- Parametre biçimi `--<alan> <değer>`. Alan adları tablodakiyle **birebir** aynıdır.
+- **Varsayılan değer yoktur.** Modun gerektirdiği her alan verilmelidir.
+- Tanınmayan alan ya da **modla ilgisiz** bir alan (ör. `post-hoc` modunda `--power`, χ²'de `--tails`) **hatadır**. Önceki "yok say" kararları (S-4) ve eş adlar (`--n`, `--n-total`, `--mode posthoc`) kaldırılır.
+- **Tek uzantı:** Ajan katmanının tablo boyutunu (`rows`, `cols`) iletebilmesi için `rows` + `cols`, `df` yerine kabul edilmeye devam eder. Bu, sözleşmede olmayan, belgelenmiş bir uzantıdır. Düzenek bunu kullanmaz.
+- Ondalık ayırıcı her zaman noktadır ve işletim sisteminin dil ayarından etkilenmez.
+- Her çağrı **2 saniye** içinde tamamlanmalı ve deterministik olmalıdır.
+
+### 0.2 Başarılı çıktı
+
+- `stdout`'a tek satır JSON; log, uyarı vb. yalnızca `stderr`'e. Çıkış kodu `0`.
+- Sayılar tam double hassasiyetle yazılır. Tam sayı alanları (`n_total`) JSON tam sayısıdır.
+- Çıktı yalnızca §0.1'deki alanları içerir. Fazladan alana izin var ama yazılmaz; özellikle `df` χ²'de **çıktı değildir**.
+
+### 0.3 Sürüm sorgusu
+
+`gpower-clone --version` → tek satır JSON, çıkış kodu 0:
+`{"contract_version": "1.0.0", "name": "chi2-power", "engine": "Python <sürüm>, scipy <sürüm>"}`
+
+### 0.4 Hata çıktısı
+
+- `stdout`'a tek satır JSON: `{"error": "<açıklama>", "code": "<KOD>", "field": "<alan ya da null>"}`.
+- **Çıkış kodları:** `2` geçersiz girdi; `1` iç hata (hesap yapılamadı, beklenmeyen durum).
+- `error` metni mümkünse G\*Power'ın mesajıdır (§2.2); kod ve alan aşağıdaki tabloya göre seçilir.
+
+| Durum | `code` | `field` |
+|---|---|---|
+| Modun gerektirdiği alan yok | `MISSING_PARAM` | eksik alan |
+| Tanınmayan alan ya da modla ilgisiz alan | `UNKNOWN_PARAM` | o alan |
+| Sayı değil; tam sayı olması gereken yerde ondalık (`n_total`, `df`); NaN/±∞ | `INVALID_VALUE` | o alan |
+| Sözleşme aralığı dışında (§0.5) ya da G\*Power'ın reddettiği değer (§2.2: α, güç, w ≥ 1e-6, df ≥ 1, N üst sınırı) | `OUT_OF_RANGE` | o alan |
+| güç < α (`Power must be greater than or equal to alpha.`) | `INCONSISTENT` | `power` |
+| Bilinmeyen `--test` ya da `--mode`; χ² dışındaki aileler | `UNSUPPORTED` | `test` ya da `mode` |
+| Girdiler geçerli ama sonuç üretilemiyor (ör. aralık genişletmede taşma) | `NO_SOLUTION` | null |
+
+Doğrulama sırası: önce ayrıştırma (`test` → `mode` → tanınmayan/ilgisiz alan → eksik alan → tür), sonra alan kuralları (§2.1 sırası).
+
+### 0.5 Sözleşme aralıkları (G\*Power'dan sıkı olanlar)
+
+Sözleşme der ki: "Bu aralıkların dışındaki bir değer `OUT_OF_RANGE` ile reddedilir; aralığın içindeki bir değerin kabulüne G\*Power'ın davranışı karar verir."
+
+| Alan | Tür | Sözleşme aralığı | G\*Power'dan farkı |
+|---|---|---|---|
+| `alpha`, `power` | ondalık | 0 < x < 1 | İçerideki ama G\*Power'ın reddettiği değerler (ör. 1e-8, 0.99999999) yine `OUT_OF_RANGE` (§2.2) |
+| `w` | ondalık | **w > 0** | G\*Power post hoc'ta w = 0'ı kabul eder (G-023); sözleşme gereği **reddedilir** |
+| `n_total` | tam sayı | **≥ 2** | G\*Power N = 1'i kabul eder (G-025); sözleşme gereği **reddedilir** |
+| `df` | tam sayı | **≥ 1** | G\*Power kesirli df'yi kabul eder (G-019); sözleşme gereği df = 2.5 `INVALID_VALUE` ile **reddedilir** |
+| `beta_alpha_ratio` | ondalık | > 0 | — |
+
+Bu üç fark bilinçli bir **sözleşme kararıdır**. Diferansiyel raporda bu vektörler "sözleşme gereği G\*Power'dan farklı" diye ayrı gösterilir; uyuşmazlık sayılmaz.
+
+### 0.6 Karşılaştırma toleransı
+
+- Tam sayılar tam eşleşmelidir.
+- Ondalıklar için |fark| ≤ 1e-6 ya da göreli fark ≤ 1e-6 yeterlidir.
+- Diferansiyel test bu kurala göre güncellenir; ekran basamağı kuralı da bu toleransın içinde kalır.
+
+### 0.7 Bonus modlar (compromise, criterion, sensitivity)
+
+Bu modlar binary'de incelenmedi; davranışları **yayımlanmış yöntemden** tanımlanır ve sözleşmenin açık referans vektörleriyle (`tests/fixtures/public_vectors.jsonl` içindeki `chi2-contingency/*`) doğrulanır. Bütün modlarda λ = w² · n_total ve merkezi olmayan χ² CDF'i §4.3 – §4.4'teki gibidir.
+
+- **sensitivity:** α, güç, n_total, df verilir. Merkezi olmayan χ²'nin gücü 1 − F(c; df, λ) = güç olacak şekilde λ ≥ 0 bulunur; c = merkezi χ²(df)'nin 1 − α quantile'ıdır. Sonra w = √(λ / n_total). Çıktı: `ncp` = λ, `critical_chi2` = c, `w`.
+- **criterion:** w, güç, n_total, df verilir. λ = w²·n_total. 1 − F(c; df, λ) = güç olacak şekilde c bulunur, sonra α = 1 − F₀(c; df). Çıktı: `ncp`, `critical_chi2` = c, `alpha`.
+- **compromise:** w, q = `beta_alpha_ratio`, n_total, df verilir. λ = w²·n_total. α(c) = 1 − F₀(c; df) ve β(c) = F(c; df, λ) olmak üzere β(c) / α(c) = q olacak şekilde c bulunur. Çıktı: `ncp`, `critical_chi2` = c, `alpha`, `beta`, `power` = 1 − β.
+- **Kök bulma:** Herhangi bir hassas kök bulucu kullanılabilir (çözüm 1e-6 toleransın çok altında olmalı).
+- **Etiket:** Bu kuralların G\*Power içindeki gerçekleştirimi incelenmediği için kanıt defterinde `[AJAN]` olarak etiketlenir; doğrulamaları referans vektörleridir.
+- **Kabul kriterleri:** Sözleşmenin üç χ² vektörü, 1e-6 toleransla:
+  - compromise: c = 7.6804954, α = β = 0.1747455, güç = 0.8252545
+  - criterion: c = 4.6618452, α = 0.4585253
+  - sensitivity: λ = 19.7801344, c = 11.0704977, w = 0.4447486
+
+### 0.8 MCP ve ajan
+
+- **MCP:** Tek araç **`power_analysis`**. Girdi şeması CLI ile **aynı alan adlarını** kullanır; `test` ve `mode` zorunludur. Çıktı, CLI'nin stdout JSON'u ile **aynıdır** ve metin içeriği olarak döner; hatada aynı hata JSON'u döner. Eşdeğerlik testi: 25 açık referans vektörünün her biri için CLI ve MCP çıktısı aynı olmalı (χ² dışındaki ailelerde ikisi de aynı `UNSUPPORTED` hatasını döndürür).
+- **Ajan kayıtları:** Her araç çağrısı `logs/agent_calls.jsonl` dosyasına bir satır olarak yazılır: `{"ts": "<ISO-8601>", "question": "...", "tool_input": {...}, "tool_output": {...}, "tokens_in": <int>, "tokens_out": <int>}`. Yalnızca kurgusal senaryolar kullanılır.
+- **"Orta etki" bir kategoridir.** Ajan, "orta etki" gibi bir kategoriden değer çıkardığında (w = 0,3) bu varsayımı kullanıcıya açıkça söylemelidir.
 
 ---
 
@@ -159,6 +257,8 @@ Bu konularda Oturum 2 varsayım yapmamalıdır. Bir uyuşmazlık çıkarsa test 
 > `n_total` tam eşleşmeli. Diğer sayısal alanlar, ekranda gösterilen basamak sayısında eşleşmelidir (§3).
 
 ```gherkin
+# §0 ile uyum: alan adları critical_chi2 / power; çıktıda df yok; G-019 (df 2.5), G-023 (w 0), G-025 (N 1)
+# sözleşme gereği hata verir (§0.5) — aşağıdaki tablolarda G*Power davranışı bilgi için durur.
 Feature: χ² olumsallık tablosu güç analizi (G*Power 3.1.9.7 ile uyumlu)
 
   Background:
@@ -172,10 +272,9 @@ Feature: χ² olumsallık tablosu güç analizi (G*Power 3.1.9.7 ile uyumlu)
     When hesaplama yapılır
     Then çıkış kodu 0 olur
     And "n_total" tam olarak <n_total> olur
-    And "actual_power", ekrandaki basamakta <actual_power> olur
-    And "critical", ekrandaki basamakta <critical> olur
-    And "ncp", ekrandaki basamakta <ncp> olur
-    And "df" <df> olur
+    And "actual_power", 1e-6 toleransla <actual_power> olur
+    And "critical_chi2", 1e-6 toleransla <critical> olur
+    And "ncp", 1e-6 toleransla <ncp> olur
 
     Examples: G*Power arayüz vektörleri — tipik değerler
       | id    | w    | alpha | power | df  | n_total | actual_power | critical   | ncp        |
@@ -222,10 +321,9 @@ Feature: χ² olumsallık tablosu güç analizi (G*Power 3.1.9.7 ile uyumlu)
     And w <w>, alpha <alpha>, n <n>, df <df>
     When hesaplama yapılır
     Then çıkış kodu 0 olur
-    And "actual_power", ekrandaki basamakta <power> olur
-    And "critical", ekrandaki basamakta <critical> olur
-    And "ncp", ekrandaki basamakta <ncp> olur
-    And "n_total" tam olarak <n> olur
+    And "power", 1e-6 toleransla <power> olur
+    And "critical_chi2", 1e-6 toleransla <critical> olur
+    And "ncp", 1e-6 toleransla <ncp> olur
 
     Examples: G*Power arayüz vektörleri
       | id    | w    | alpha | n      | df | power     | critical   | ncp        |
@@ -248,8 +346,8 @@ Feature: χ² olumsallık tablosu güç analizi (G*Power 3.1.9.7 ile uyumlu)
   Scenario Outline: Geçersiz girdiler G*Power'ın mesajıyla hata verir
     Given mod "<mode>" ve girdiler <inputs>
     When hesaplama yapılır
-    Then çıktı tek satır {"error":"<mesaj>"} olur
-    And çıkış kodu sıfırdan farklıdır
+    Then çıktı tek satır {"error":"<mesaj>", "code": ..., "field": ...} olur (kod ve alan §0.4)
+    And çıkış kodu 2 olur
 
     Examples: G*Power arayüz vektörleri
       | id    | mode     | inputs                                 | mesaj                                                             |
