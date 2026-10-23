@@ -15,11 +15,14 @@ def test_harness_on_spec_vectors():
     results = differential.run_csv(FIXTURE, differential.default_cmd())
     assert len(results) == 30
     g = differential.gate(results)
-    assert g["n_vectors"] == 23 and g["exact"] == 22 and g["unverifiable"] == 1
+    # a priori n_total vektörleri: 15, G-019 sözleşme gereği hariç → 14 (G-013 doğrulanamayan)
+    assert g["n_vectors"] == 14 and g["exact"] == 13 and g["unverifiable"] == 1
     bad = [(r.vid, [c for c in r.checks if not c.ok]) for r in results if not r.ok]
     assert bad == []
+    assert sorted(r.vid for r in results if r.kind == "contract") == ["G-019", "G-023", "G-025"]
+    assert max(r.seconds for r in results) < 2.0  # §0.1
     report, passed = differential.build_report(results, FIXTURE, 0.90)
-    assert passed and "GEÇTİ" in report
+    assert passed and "GEÇTİ" in report and "Sözleşme gereği G*Power'dan farklı" in report
 
 
 def test_harness_detects_mismatch(tmp_path):
