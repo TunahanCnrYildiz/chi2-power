@@ -118,7 +118,7 @@ aynı ham alan sözlüğünü buraya verir.
 
 ## Sonuçlar
 
-- pytest: **266 geçti, 1 atlandı** (`oracle/vectors.csv` henüz yok → `test_oracle_gate` atlanıyor)**
+- pytest: **266 geçti, 1 atlandı** (`oracle/vectors.csv` henüz yok → `test_oracle_gate` atlanıyor)
 - **SPEC vektörleri** (`tests/reports/differential_report_spec.md`, §0.6 toleransı):
   - 30/30 vektör beklenen sonucu veriyor: 20 hesap, 7 G*Power hatası (mesaj, kod ve alan), 3 sözleşme farkı.
   - **KAPI: 13/14 = %92.86.** Payda yalnızca a priori `n_total` vektörlerinden oluşuyor; G-019 hariç tutuldu,
@@ -402,8 +402,8 @@ değiştirilmedi; iki yolda da ana model Opus 5.5)
 | 2. Brent durma ölçütü tol1 = 2·eps·\|b\| + 0.5·1e-10; 300 iterasyonda hata | **Değişti.** \|yarım aralık\| ≤ 1.1102230246251565e-16·\|b\| ya da f(b) = 0; 300 iterasyon dolarsa son tahmin b döner, hata yok. 894 statsmodels vektöründe hiçbir `n_total`/`actual_power` değişmedi (kesirli N en çok 2.5·10⁻¹¹ kaydı; `tests/test_statsmodels.py`). |
 | 3. Aralık genişletmede taşma → uydurma hata | **Kaldı** (SPEC §5.1 S-1 serbest bırakıyor); mesaj `Unable to bracket the total sample size (upper bound overflow).` Pratikte erişilemez. |
 | `round_n` içinde "en az 1" | **Değişti.** Alt sınır artık §4.5/5'teki alt uç kuralıyla uygulanıyor (alt ≥ 1). |
-| 9. `df` her zaman ondalık (`1.0`) | **Değişti** (S-3): tamsayıya eşitse `1`, değilse `2.5`. |
-| 7. Moda ait olmayan bilinen parametre yok sayılır | **Kaldı** (S-4); ayrıca `--tails` ve `--ratio` değer alarak kabul edilip yok sayılıyor. Gerçekten bilinmeyen parametre (ör. `--d`) hata verir. |
+| 9. `df` her zaman ondalık (`1.0`) | **Değişti** (S-3): tamsayıya eşitse `1`, değilse `2.5`. Sözleşme v1.0.0 ile kalktı (df çıktı değil). |
+| 7. Moda ait olmayan bilinen parametre yok sayılır | **Kaldı** (S-4); ayrıca `--tails` ve `--ratio` değer alarak kabul edilip yok sayılıyor. Gerçekten bilinmeyen parametre (ör. `--d`) hata verir. Sözleşme v1.0.0 ile kalktı (`UNKNOWN_PARAM`). |
 | Raporlar `reports/` | `tests/reports/` altına taşındı (`git mv`); `differential.py` varsayılan raporu `tests/reports/differential_report.md`. |
 
 ## Geçerli tasarım kararları (SPEC'te tanımlı değil)
