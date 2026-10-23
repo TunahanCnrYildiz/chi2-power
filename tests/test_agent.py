@@ -14,7 +14,7 @@ from gpower_clone.agent import claude_cli, gui_compare, main_agent, prompts, sco
 HERE = Path(__file__).resolve().parent
 EVAL = json.loads((HERE / "agent" / "eval_set.json").read_text(encoding="utf-8"))
 Q = {q["id"]: q for q in EVAL["questions"]}
-TOOL = "mcp__gpower-clone__chi2_contingency_power"
+TOOL = "mcp__gpower-clone__power_analysis"
 
 
 # ---------- komut kurulumu: yalnızca MCP aracı ----------
@@ -106,8 +106,10 @@ def test_final_json_line():
 
 # ---------- puanlama ----------
 
-GOOD_RESULT = {"n_total": 145, "actual_power": 0.9507851454132252, "critical": 3.8414588206941285,
+OLD_RESULT = {"n_total": 145, "actual_power": 0.9507851454132252, "critical": 3.8414588206941285,
                "df": 1, "ncp": 13.049999999999999}
+GOOD_RESULT = {"ncp": 13.049999999999999, "critical_chi2": 3.8414588206941285, "n_total": 145,
+               "actual_power": 0.9507851454132252}
 
 
 def _run(final, calls):
@@ -115,7 +117,7 @@ def _run(final, calls):
 
 
 def test_score_chi2_correct():
-    args = {"mode": "a-priori", "w": 0.3, "alpha": 0.05, "power": 0.95, "rows": 2, "cols": 2}
+    args = {"test": "chi2-contingency", "mode": "a-priori", "w": 0.3, "alpha": 0.05, "power": 0.95, "rows": 2, "cols": 2}
     run = _run('{"label": "chi2-contingency", "n_total": 145, "actual_power": 0.9507851454132252}',
                [{"name": TOOL, "arguments": args, "result": GOOD_RESULT, "is_error": False}])
     s = scoring.score_main(Q["Q01"], run)
@@ -124,7 +126,7 @@ def test_score_chi2_correct():
 
 
 def test_score_flags_numbers_not_from_tool():
-    args = {"mode": "a-priori", "w": 0.3, "alpha": 0.05, "power": 0.95, "df": 1}
+    args = {"test": "chi2-contingency", "mode": "a-priori", "w": 0.3, "alpha": 0.05, "power": 0.95, "df": 1}
     run = _run('{"label": "chi2-contingency", "n_total": 145, "actual_power": 0.9508}',
                [{"name": TOOL, "arguments": args, "result": GOOD_RESULT, "is_error": False}])
     s = scoring.score_main(Q["Q01"], run)
@@ -139,7 +141,7 @@ def test_score_flags_numbers_without_tool_call():
 
 
 def test_score_wrong_params():
-    args = {"mode": "a-priori", "w": 0.3, "alpha": 0.05, "power": 0.95, "rows": 3, "cols": 3}
+    args = {"test": "chi2-contingency", "mode": "a-priori", "w": 0.3, "alpha": 0.05, "power": 0.95, "rows": 3, "cols": 3}
     run = _run('{"label": "chi2-contingency", "n_total": 145, "actual_power": 0.9507851454132252}',
                [{"name": TOOL, "arguments": args, "result": GOOD_RESULT, "is_error": False}])
     assert not scoring.score_main(Q["Q01"], run)["params_ok"]
@@ -216,7 +218,7 @@ def test_gui_section_table(tmp_path):
 def test_report_builds_from_records(tmp_path):
     from gpower_clone.agent import evaluate
 
-    args = {"mode": "a-priori", "w": 0.3, "alpha": 0.05, "power": 0.95, "rows": 2, "cols": 2}
+    args = {"test": "chi2-contingency", "mode": "a-priori", "w": 0.3, "alpha": 0.05, "power": 0.95, "rows": 2, "cols": 2}
     run = _run('{"label": "chi2-contingency", "n_total": 145, "actual_power": 0.9507851454132252}',
                [{"name": TOOL, "arguments": args, "result": GOOD_RESULT, "is_error": False}])
     run.update(usage={"input_tokens": 1, "cache_creation_input_tokens": 2, "cache_read_input_tokens": 3,
@@ -276,7 +278,7 @@ def test_gui_section_overhead_screenshots_and_fairness(tmp_path):
 
 
 def _main_rec(model, label_ok=True, tokens=10):
-    args = {"mode": "a-priori", "w": 0.3, "alpha": 0.05, "power": 0.95, "rows": 2, "cols": 2}
+    args = {"test": "chi2-contingency", "mode": "a-priori", "w": 0.3, "alpha": 0.05, "power": 0.95, "rows": 2, "cols": 2}
     run = _run('{"label": "chi2-contingency", "n_total": 145, "actual_power": 0.9507851454132252}',
                [{"name": TOOL, "arguments": args, "result": GOOD_RESULT, "is_error": False}])
     run.update(usage={"input_tokens": tokens, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0,
@@ -301,3 +303,74 @@ def test_evaluate_model_options():
 
     a = evaluate.parse_args(["--main-model", "claude-opus-5-5", "--s1-model", "claude-haiku-5-5"])
     assert a.main_model == "claude-opus-5-5" and a.s1_model == "claude-haiku-5-5"
+
+
+
+# ---------- Sözleşme v1.0.0 araç adı ve alanları (SPEC §0.8) ----------
+
+def test_tool_name_is_power_analysis():
+    assert prompts.TOOL_NAME == "power_analysis"
+    assert prompts.TOOL_FQN == TOOL
+
+
+def test_prompt_mentions_contract_fields_and_category_disclosure():
+    p = prompts.MAIN_SYSTEM_PROMPT
+    for needle in ('test = "chi2-contingency"', "n_total", '"power"', "varsayım"):
+        assert needle in p, needle
+
+
+def test_score_post_hoc_with_contract_output():
+    q = Q["Q05"]
+    args = {"test": "chi2-contingency", "mode": "post-hoc", "w": 0.3, "alpha": 0.05, "n_total": 100,
+            "rows": 2, "cols": 2}
+    res = {"ncp": 9.0, "critical_chi2": 3.8414588206941285, "power": 0.850838768327056}
+    ok = scoring.score_main(q, _run('{"label": "chi2-contingency", "n_total": 100, "actual_power": 0.850838768327056}',
+                                    [{"name": TOOL, "arguments": args, "result": res, "is_error": False}]))
+    assert ok["params_ok"] and ok["n_ok"] and ok["power_ok"] and not ok["agent_made_numbers"]
+    bad = scoring.score_main(q, _run('{"label": "chi2-contingency", "n_total": 100, "actual_power": 0.85}',
+                                     [{"name": TOOL, "arguments": args, "result": res, "is_error": False}]))
+    assert bad["agent_made_numbers"]
+
+
+def test_score_requires_test_field():
+    args = {"mode": "a-priori", "w": 0.3, "alpha": 0.05, "power": 0.95, "rows": 2, "cols": 2}
+    run = _run('{"label": "chi2-contingency", "n_total": 145, "actual_power": 0.9507851454132252}',
+               [{"name": TOOL, "arguments": args, "result": GOOD_RESULT, "is_error": False}])
+    assert not scoring.score_main(Q["Q01"], run)["params_ok"]
+
+
+def test_call_log_lines(tmp_path):
+    run = {"tool_calls": [{"name": TOOL, "arguments": {"test": "chi2-contingency", "mode": "a-priori"},
+                           "result": GOOD_RESULT, "is_error": False}],
+           "usage": {"input_tokens": 10, "cache_creation_input_tokens": 100, "cache_read_input_tokens": 1000,
+                     "output_tokens": 50}}
+    path = tmp_path / "logs" / "agent_calls.jsonl"
+    main_agent.log_calls("soru?", run, path, ts="2026-10-23T12:00:00+00:00")
+    rec = json.loads(path.read_text(encoding="utf-8").strip())
+    assert list(rec) == ["ts", "question", "tool_input", "tool_output", "tokens_in", "tokens_out"]
+    assert rec["tool_input"] == {"test": "chi2-contingency", "mode": "a-priori"}
+    assert rec["tool_output"] == GOOD_RESULT
+    assert (rec["tokens_in"], rec["tokens_out"]) == (1110, 50)
+
+
+def test_call_log_splits_tokens_across_calls(tmp_path):
+    call = {"name": TOOL, "arguments": {}, "result": GOOD_RESULT, "is_error": False}
+    run = {"tool_calls": [call, call], "usage": {"input_tokens": 3, "cache_creation_input_tokens": 0,
+                                                   "cache_read_input_tokens": 0, "output_tokens": 5}}
+    path = tmp_path / "a.jsonl"
+    main_agent.log_calls("q", run, path)
+    recs = [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines()]
+    assert [(r["tokens_in"], r["tokens_out"]) for r in recs] == [(2, 3), (1, 2)]
+
+
+def test_report_groups_previous_tool_runs(tmp_path):
+    from gpower_clone.agent import evaluate
+
+    old = _main_rec("claude-opus-5-5", tokens=333)
+    old["tool_calls"][0]["name"] = "mcp__gpower-clone__chi2_contingency_power"
+    new = _main_rec("claude-opus-5-5", tokens=444)
+    new["tool"] = TOOL
+    md = evaluate.build_report(EVAL["questions"], [old, new], [], tmp_path / "gui_results.json")
+    primary, previous = md.split("Önceki çalıştırma")[0], md.split("Önceki çalıştırma")[1]
+    assert "444" in primary and "333" not in primary
+    assert "333" in previous and "chi2_contingency_power" in previous
